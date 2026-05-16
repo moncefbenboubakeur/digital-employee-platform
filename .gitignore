@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+dist
+.env
+.env.local
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+storage/answer-audio
+storage/voice-library/*.wav
+*.db
+*.sqlite
+*.sqlite3

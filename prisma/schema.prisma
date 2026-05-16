@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String     @id
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  locations Location[]
+}
+
+model Location {
+  id                 String            @id
+  tenantId           String
+  tenantNameJson     String
+  locationNameJson   String
+  welcomeTitleJson   String
+  serviceSummaryJson String
+  privacyNoteJson    String
+  openingHoursJson   String
+  contactNumber      String
+  defaultLanguage    String
+  currentWaitJson    String
+  liveStatusJson     String
+  voiceSettingsJson  String            @default("{}")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  counters           Counter[]
+  actions            VisitorAction[]
+  answers            Answer[]
+  unknownQuestions   UnknownQuestion[]
+  questionEvents     QuestionEvent[]
+  auditLogs          AuditLog[]
+  devices            KioskDevice[]
+}
+
+model Counter {
+  id         String   @id
+  locationId String
+  labelJson  String
+  statusJson String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+model VisitorAction {
+  id              String   @id
+  locationId      String
+  type            String
+  labelJson       String
+  descriptionJson String
+  value           String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  answers         Answer[]
+}
+
+model Answer {
+  id                    String         @id
+  locationId            String
+  canonicalQuestionJson String
+  answerTextJson        String
+  keywordsJson          String
+  actionId              String?
+  usageCount            Int            @default(0)
+  lastUpdated           String
+  category              String
+  published             Boolean        @default(true)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  location              Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  action                VisitorAction? @relation(fields: [actionId], references: [id], onDelete: SetNull)
+  questionEvents        QuestionEvent[]
+}
+
+model UnknownQuestion {
+  id                   String   @id
+  locationId           String
+  question             String
+  language             String
+  fallbackResponseJson String
+  count                Int      @default(1)
+  confidence           String
+  status               String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  location             Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+model QuestionEvent {
+  id         String   @id
+  locationId String
+  question   String
+  language   String
+  cacheHit   Boolean
+  answerId   String?
+  createdAt  DateTime @default(now())
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  answer     Answer?  @relation(fields: [answerId], references: [id], onDelete: SetNull)
+}
+
+model AuditLog {
+  id         String   @id
+  locationId String
+  actor      String
+  action     String
+  entityType String
+  entityId   String
+  summary    String
+  createdAt  DateTime @default(now())
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+model KioskDevice {
+  id             String    @id
+  locationId     String
+  label          String
+  status         String    @default("online")
+  userAgent      String?
+  heartbeatCount Int       @default(0)
+  lastSeenAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  location       Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+model AdminCredential {
+  id           String   @id
+  passwordHash String
+  passwordSalt String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

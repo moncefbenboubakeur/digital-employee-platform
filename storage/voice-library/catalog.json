@@ -1,0 +1,887 @@
+{
+  "generatedAt": "2026-05-12T16:44:13.878496+00:00",
+  "presets": [
+    {
+      "id": "say.jacques.fr",
+      "engine": "say",
+      "voiceId": "Jacques",
+      "displayName": "Jacques",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/say.jacques.fr.wav"
+    },
+    {
+      "id": "say.amelie.fr-ca",
+      "engine": "say",
+      "voiceId": "Amélie",
+      "displayName": "Amélie",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/say.amelie.fr-ca.wav"
+    },
+    {
+      "id": "say.thomas.fr",
+      "engine": "say",
+      "voiceId": "Thomas",
+      "displayName": "Thomas",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/say.thomas.fr.wav"
+    },
+    {
+      "id": "say.daniel.en-gb",
+      "engine": "say",
+      "voiceId": "Daniel",
+      "displayName": "Daniel",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/say.daniel.en-gb.wav"
+    },
+    {
+      "id": "say.reed.en-us",
+      "engine": "say",
+      "voiceId": "Reed (English (US))",
+      "displayName": "Reed",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/say.reed.en-us.wav"
+    },
+    {
+      "id": "say.fred.en-us",
+      "engine": "say",
+      "voiceId": "Fred",
+      "displayName": "Fred",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/say.fred.en-us.wav"
+    },
+    {
+      "id": "say.samantha.en-us",
+      "engine": "say",
+      "voiceId": "Samantha",
+      "displayName": "Samantha",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/say.samantha.en-us.wav"
+    },
+    {
+      "id": "say.karen.en-au",
+      "engine": "say",
+      "voiceId": "Karen",
+      "displayName": "Karen",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/say.karen.en-au.wav"
+    },
+    {
+      "id": "xtts.claribel_dervla.en",
+      "engine": "xtts",
+      "voiceId": "Claribel Dervla",
+      "displayName": "Claribel",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.claribel_dervla.en.wav"
+    },
+    {
+      "id": "xtts.claribel_dervla.fr",
+      "engine": "xtts",
+      "voiceId": "Claribel Dervla",
+      "displayName": "Claribel",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.claribel_dervla.fr.wav"
+    },
+    {
+      "id": "xtts.claribel_dervla.ar",
+      "engine": "xtts",
+      "voiceId": "Claribel Dervla",
+      "displayName": "Claribel",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.claribel_dervla.ar.wav"
+    },
+    {
+      "id": "xtts.daisy_studious.en",
+      "engine": "xtts",
+      "voiceId": "Daisy Studious",
+      "displayName": "Daisy",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.daisy_studious.en.wav"
+    },
+    {
+      "id": "xtts.daisy_studious.fr",
+      "engine": "xtts",
+      "voiceId": "Daisy Studious",
+      "displayName": "Daisy",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.daisy_studious.fr.wav"
+    },
+    {
+      "id": "xtts.daisy_studious.ar",
+      "engine": "xtts",
+      "voiceId": "Daisy Studious",
+      "displayName": "Daisy",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.daisy_studious.ar.wav"
+    },
+    {
+      "id": "xtts.gracie_wise.en",
+      "engine": "xtts",
+      "voiceId": "Gracie Wise",
+      "displayName": "Gracie",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.gracie_wise.en.wav"
+    },
+    {
+      "id": "xtts.gracie_wise.fr",
+      "engine": "xtts",
+      "voiceId": "Gracie Wise",
+      "displayName": "Gracie",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.gracie_wise.fr.wav"
+    },
+    {
+      "id": "xtts.gracie_wise.ar",
+      "engine": "xtts",
+      "voiceId": "Gracie Wise",
+      "displayName": "Gracie",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.gracie_wise.ar.wav"
+    },
+    {
+      "id": "xtts.tammie_ema.en",
+      "engine": "xtts",
+      "voiceId": "Tammie Ema",
+      "displayName": "Tammie",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.tammie_ema.en.wav"
+    },
+    {
+      "id": "xtts.tammie_ema.fr",
+      "engine": "xtts",
+      "voiceId": "Tammie Ema",
+      "displayName": "Tammie",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.tammie_ema.fr.wav"
+    },
+    {
+      "id": "xtts.tammie_ema.ar",
+      "engine": "xtts",
+      "voiceId": "Tammie Ema",
+      "displayName": "Tammie",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.tammie_ema.ar.wav"
+    },
+    {
+      "id": "xtts.alison_dietlinde.en",
+      "engine": "xtts",
+      "voiceId": "Alison Dietlinde",
+      "displayName": "Alison",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.alison_dietlinde.en.wav"
+    },
+    {
+      "id": "xtts.alison_dietlinde.fr",
+      "engine": "xtts",
+      "voiceId": "Alison Dietlinde",
+      "displayName": "Alison",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.alison_dietlinde.fr.wav"
+    },
+    {
+      "id": "xtts.alison_dietlinde.ar",
+      "engine": "xtts",
+      "voiceId": "Alison Dietlinde",
+      "displayName": "Alison",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.alison_dietlinde.ar.wav"
+    },
+    {
+      "id": "xtts.ana_florence.en",
+      "engine": "xtts",
+      "voiceId": "Ana Florence",
+      "displayName": "Ana",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.ana_florence.en.wav"
+    },
+    {
+      "id": "xtts.ana_florence.fr",
+      "engine": "xtts",
+      "voiceId": "Ana Florence",
+      "displayName": "Ana",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.ana_florence.fr.wav"
+    },
+    {
+      "id": "xtts.ana_florence.ar",
+      "engine": "xtts",
+      "voiceId": "Ana Florence",
+      "displayName": "Ana",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.ana_florence.ar.wav"
+    },
+    {
+      "id": "xtts.annmarie_nele.en",
+      "engine": "xtts",
+      "voiceId": "Annmarie Nele",
+      "displayName": "Annmarie",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.annmarie_nele.en.wav"
+    },
+    {
+      "id": "xtts.annmarie_nele.fr",
+      "engine": "xtts",
+      "voiceId": "Annmarie Nele",
+      "displayName": "Annmarie",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.annmarie_nele.fr.wav"
+    },
+    {
+      "id": "xtts.annmarie_nele.ar",
+      "engine": "xtts",
+      "voiceId": "Annmarie Nele",
+      "displayName": "Annmarie",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.annmarie_nele.ar.wav"
+    },
+    {
+      "id": "xtts.asya_anara.en",
+      "engine": "xtts",
+      "voiceId": "Asya Anara",
+      "displayName": "Asya",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.asya_anara.en.wav"
+    },
+    {
+      "id": "xtts.asya_anara.fr",
+      "engine": "xtts",
+      "voiceId": "Asya Anara",
+      "displayName": "Asya",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.asya_anara.fr.wav"
+    },
+    {
+      "id": "xtts.asya_anara.ar",
+      "engine": "xtts",
+      "voiceId": "Asya Anara",
+      "displayName": "Asya",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.asya_anara.ar.wav"
+    },
+    {
+      "id": "xtts.brenda_stern.en",
+      "engine": "xtts",
+      "voiceId": "Brenda Stern",
+      "displayName": "Brenda",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.brenda_stern.en.wav"
+    },
+    {
+      "id": "xtts.brenda_stern.fr",
+      "engine": "xtts",
+      "voiceId": "Brenda Stern",
+      "displayName": "Brenda",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.brenda_stern.fr.wav"
+    },
+    {
+      "id": "xtts.brenda_stern.ar",
+      "engine": "xtts",
+      "voiceId": "Brenda Stern",
+      "displayName": "Brenda",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.brenda_stern.ar.wav"
+    },
+    {
+      "id": "xtts.sofia_hellen.en",
+      "engine": "xtts",
+      "voiceId": "Sofia Hellen",
+      "displayName": "Sofia",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.sofia_hellen.en.wav"
+    },
+    {
+      "id": "xtts.sofia_hellen.fr",
+      "engine": "xtts",
+      "voiceId": "Sofia Hellen",
+      "displayName": "Sofia",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.sofia_hellen.fr.wav"
+    },
+    {
+      "id": "xtts.sofia_hellen.ar",
+      "engine": "xtts",
+      "voiceId": "Sofia Hellen",
+      "displayName": "Sofia",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.sofia_hellen.ar.wav"
+    },
+    {
+      "id": "xtts.tanja_adelina.en",
+      "engine": "xtts",
+      "voiceId": "Tanja Adelina",
+      "displayName": "Tanja",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.tanja_adelina.en.wav"
+    },
+    {
+      "id": "xtts.tanja_adelina.fr",
+      "engine": "xtts",
+      "voiceId": "Tanja Adelina",
+      "displayName": "Tanja",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.tanja_adelina.fr.wav"
+    },
+    {
+      "id": "xtts.tanja_adelina.ar",
+      "engine": "xtts",
+      "voiceId": "Tanja Adelina",
+      "displayName": "Tanja",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.tanja_adelina.ar.wav"
+    },
+    {
+      "id": "xtts.nova_hogarth.en",
+      "engine": "xtts",
+      "voiceId": "Nova Hogarth",
+      "displayName": "Nova",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.nova_hogarth.en.wav"
+    },
+    {
+      "id": "xtts.nova_hogarth.fr",
+      "engine": "xtts",
+      "voiceId": "Nova Hogarth",
+      "displayName": "Nova",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.nova_hogarth.fr.wav"
+    },
+    {
+      "id": "xtts.nova_hogarth.ar",
+      "engine": "xtts",
+      "voiceId": "Nova Hogarth",
+      "displayName": "Nova",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.nova_hogarth.ar.wav"
+    },
+    {
+      "id": "xtts.alexandra_hisakawa.en",
+      "engine": "xtts",
+      "voiceId": "Alexandra Hisakawa",
+      "displayName": "Alexandra",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.alexandra_hisakawa.en.wav"
+    },
+    {
+      "id": "xtts.alexandra_hisakawa.fr",
+      "engine": "xtts",
+      "voiceId": "Alexandra Hisakawa",
+      "displayName": "Alexandra",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.alexandra_hisakawa.fr.wav"
+    },
+    {
+      "id": "xtts.alexandra_hisakawa.ar",
+      "engine": "xtts",
+      "voiceId": "Alexandra Hisakawa",
+      "displayName": "Alexandra",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.alexandra_hisakawa.ar.wav"
+    },
+    {
+      "id": "xtts.rosemary_okafor.en",
+      "engine": "xtts",
+      "voiceId": "Rosemary Okafor",
+      "displayName": "Rosemary",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.rosemary_okafor.en.wav"
+    },
+    {
+      "id": "xtts.rosemary_okafor.fr",
+      "engine": "xtts",
+      "voiceId": "Rosemary Okafor",
+      "displayName": "Rosemary",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.rosemary_okafor.fr.wav"
+    },
+    {
+      "id": "xtts.rosemary_okafor.ar",
+      "engine": "xtts",
+      "voiceId": "Rosemary Okafor",
+      "displayName": "Rosemary",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.rosemary_okafor.ar.wav"
+    },
+    {
+      "id": "xtts.camilla_holmstrom.en",
+      "engine": "xtts",
+      "voiceId": "Camilla Holmström",
+      "displayName": "Camilla",
+      "language": "en",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.camilla_holmstrom.en.wav"
+    },
+    {
+      "id": "xtts.camilla_holmstrom.fr",
+      "engine": "xtts",
+      "voiceId": "Camilla Holmström",
+      "displayName": "Camilla",
+      "language": "fr",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.camilla_holmstrom.fr.wav"
+    },
+    {
+      "id": "xtts.camilla_holmstrom.ar",
+      "engine": "xtts",
+      "voiceId": "Camilla Holmström",
+      "displayName": "Camilla",
+      "language": "ar",
+      "gender": "female",
+      "previewPath": "voice-library/xtts.camilla_holmstrom.ar.wav"
+    },
+    {
+      "id": "xtts.andrew_chipper.en",
+      "engine": "xtts",
+      "voiceId": "Andrew Chipper",
+      "displayName": "Andrew",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.andrew_chipper.en.wav"
+    },
+    {
+      "id": "xtts.andrew_chipper.fr",
+      "engine": "xtts",
+      "voiceId": "Andrew Chipper",
+      "displayName": "Andrew",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.andrew_chipper.fr.wav"
+    },
+    {
+      "id": "xtts.andrew_chipper.ar",
+      "engine": "xtts",
+      "voiceId": "Andrew Chipper",
+      "displayName": "Andrew",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.andrew_chipper.ar.wav"
+    },
+    {
+      "id": "xtts.viktor_eka.en",
+      "engine": "xtts",
+      "voiceId": "Viktor Eka",
+      "displayName": "Viktor",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.viktor_eka.en.wav"
+    },
+    {
+      "id": "xtts.viktor_eka.fr",
+      "engine": "xtts",
+      "voiceId": "Viktor Eka",
+      "displayName": "Viktor",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.viktor_eka.fr.wav"
+    },
+    {
+      "id": "xtts.viktor_eka.ar",
+      "engine": "xtts",
+      "voiceId": "Viktor Eka",
+      "displayName": "Viktor",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.viktor_eka.ar.wav"
+    },
+    {
+      "id": "xtts.craig_gutsy.en",
+      "engine": "xtts",
+      "voiceId": "Craig Gutsy",
+      "displayName": "Craig",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.craig_gutsy.en.wav"
+    },
+    {
+      "id": "xtts.craig_gutsy.fr",
+      "engine": "xtts",
+      "voiceId": "Craig Gutsy",
+      "displayName": "Craig",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.craig_gutsy.fr.wav"
+    },
+    {
+      "id": "xtts.craig_gutsy.ar",
+      "engine": "xtts",
+      "voiceId": "Craig Gutsy",
+      "displayName": "Craig",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.craig_gutsy.ar.wav"
+    },
+    {
+      "id": "xtts.damien_black.en",
+      "engine": "xtts",
+      "voiceId": "Damien Black",
+      "displayName": "Damien",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.damien_black.en.wav"
+    },
+    {
+      "id": "xtts.damien_black.fr",
+      "engine": "xtts",
+      "voiceId": "Damien Black",
+      "displayName": "Damien",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.damien_black.fr.wav"
+    },
+    {
+      "id": "xtts.damien_black.ar",
+      "engine": "xtts",
+      "voiceId": "Damien Black",
+      "displayName": "Damien",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.damien_black.ar.wav"
+    },
+    {
+      "id": "xtts.royston_min.en",
+      "engine": "xtts",
+      "voiceId": "Royston Min",
+      "displayName": "Royston",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.royston_min.en.wav"
+    },
+    {
+      "id": "xtts.royston_min.fr",
+      "engine": "xtts",
+      "voiceId": "Royston Min",
+      "displayName": "Royston",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.royston_min.fr.wav"
+    },
+    {
+      "id": "xtts.royston_min.ar",
+      "engine": "xtts",
+      "voiceId": "Royston Min",
+      "displayName": "Royston",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.royston_min.ar.wav"
+    },
+    {
+      "id": "xtts.dionisio_schuyler.en",
+      "engine": "xtts",
+      "voiceId": "Dionisio Schuyler",
+      "displayName": "Dionisio",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.dionisio_schuyler.en.wav"
+    },
+    {
+      "id": "xtts.dionisio_schuyler.fr",
+      "engine": "xtts",
+      "voiceId": "Dionisio Schuyler",
+      "displayName": "Dionisio",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.dionisio_schuyler.fr.wav"
+    },
+    {
+      "id": "xtts.dionisio_schuyler.ar",
+      "engine": "xtts",
+      "voiceId": "Dionisio Schuyler",
+      "displayName": "Dionisio",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.dionisio_schuyler.ar.wav"
+    },
+    {
+      "id": "xtts.badr_odhiambo.en",
+      "engine": "xtts",
+      "voiceId": "Badr Odhiambo",
+      "displayName": "Badr",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.badr_odhiambo.en.wav"
+    },
+    {
+      "id": "xtts.badr_odhiambo.fr",
+      "engine": "xtts",
+      "voiceId": "Badr Odhiambo",
+      "displayName": "Badr",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.badr_odhiambo.fr.wav"
+    },
+    {
+      "id": "xtts.badr_odhiambo.ar",
+      "engine": "xtts",
+      "voiceId": "Badr Odhiambo",
+      "displayName": "Badr",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.badr_odhiambo.ar.wav"
+    },
+    {
+      "id": "xtts.baldur_sanjin.en",
+      "engine": "xtts",
+      "voiceId": "Baldur Sanjin",
+      "displayName": "Baldur",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.baldur_sanjin.en.wav"
+    },
+    {
+      "id": "xtts.baldur_sanjin.fr",
+      "engine": "xtts",
+      "voiceId": "Baldur Sanjin",
+      "displayName": "Baldur",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.baldur_sanjin.fr.wav"
+    },
+    {
+      "id": "xtts.baldur_sanjin.ar",
+      "engine": "xtts",
+      "voiceId": "Baldur Sanjin",
+      "displayName": "Baldur",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.baldur_sanjin.ar.wav"
+    },
+    {
+      "id": "xtts.aaron_dreschner.en",
+      "engine": "xtts",
+      "voiceId": "Aaron Dreschner",
+      "displayName": "Aaron",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.aaron_dreschner.en.wav"
+    },
+    {
+      "id": "xtts.aaron_dreschner.fr",
+      "engine": "xtts",
+      "voiceId": "Aaron Dreschner",
+      "displayName": "Aaron",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.aaron_dreschner.fr.wav"
+    },
+    {
+      "id": "xtts.aaron_dreschner.ar",
+      "engine": "xtts",
+      "voiceId": "Aaron Dreschner",
+      "displayName": "Aaron",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.aaron_dreschner.ar.wav"
+    },
+    {
+      "id": "xtts.filip_traverse.en",
+      "engine": "xtts",
+      "voiceId": "Filip Traverse",
+      "displayName": "Filip",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.filip_traverse.en.wav"
+    },
+    {
+      "id": "xtts.filip_traverse.fr",
+      "engine": "xtts",
+      "voiceId": "Filip Traverse",
+      "displayName": "Filip",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.filip_traverse.fr.wav"
+    },
+    {
+      "id": "xtts.filip_traverse.ar",
+      "engine": "xtts",
+      "voiceId": "Filip Traverse",
+      "displayName": "Filip",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.filip_traverse.ar.wav"
+    },
+    {
+      "id": "xtts.kumar_dahl.en",
+      "engine": "xtts",
+      "voiceId": "Kumar Dahl",
+      "displayName": "Kumar",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.kumar_dahl.en.wav"
+    },
+    {
+      "id": "xtts.kumar_dahl.fr",
+      "engine": "xtts",
+      "voiceId": "Kumar Dahl",
+      "displayName": "Kumar",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.kumar_dahl.fr.wav"
+    },
+    {
+      "id": "xtts.kumar_dahl.ar",
+      "engine": "xtts",
+      "voiceId": "Kumar Dahl",
+      "displayName": "Kumar",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.kumar_dahl.ar.wav"
+    },
+    {
+      "id": "xtts.eugenio_mataraci.en",
+      "engine": "xtts",
+      "voiceId": "Eugenio Mataracı",
+      "displayName": "Eugenio",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.eugenio_mataraci.en.wav"
+    },
+    {
+      "id": "xtts.eugenio_mataraci.fr",
+      "engine": "xtts",
+      "voiceId": "Eugenio Mataracı",
+      "displayName": "Eugenio",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.eugenio_mataraci.fr.wav"
+    },
+    {
+      "id": "xtts.eugenio_mataraci.ar",
+      "engine": "xtts",
+      "voiceId": "Eugenio Mataracı",
+      "displayName": "Eugenio",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.eugenio_mataraci.ar.wav"
+    },
+    {
+      "id": "xtts.xavier_hayasaka.en",
+      "engine": "xtts",
+      "voiceId": "Xavier Hayasaka",
+      "displayName": "Xavier",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.xavier_hayasaka.en.wav"
+    },
+    {
+      "id": "xtts.xavier_hayasaka.fr",
+      "engine": "xtts",
+      "voiceId": "Xavier Hayasaka",
+      "displayName": "Xavier",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.xavier_hayasaka.fr.wav"
+    },
+    {
+      "id": "xtts.xavier_hayasaka.ar",
+      "engine": "xtts",
+      "voiceId": "Xavier Hayasaka",
+      "displayName": "Xavier",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.xavier_hayasaka.ar.wav"
+    },
+    {
+      "id": "xtts.luis_moray.en",
+      "engine": "xtts",
+      "voiceId": "Luis Moray",
+      "displayName": "Luis",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.luis_moray.en.wav"
+    },
+    {
+      "id": "xtts.luis_moray.fr",
+      "engine": "xtts",
+      "voiceId": "Luis Moray",
+      "displayName": "Luis",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.luis_moray.fr.wav"
+    },
+    {
+      "id": "xtts.luis_moray.ar",
+      "engine": "xtts",
+      "voiceId": "Luis Moray",
+      "displayName": "Luis",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.luis_moray.ar.wav"
+    },
+    {
+      "id": "xtts.marcos_rudaski.en",
+      "engine": "xtts",
+      "voiceId": "Marcos Rudaski",
+      "displayName": "Marcos",
+      "language": "en",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.marcos_rudaski.en.wav"
+    },
+    {
+      "id": "xtts.marcos_rudaski.fr",
+      "engine": "xtts",
+      "voiceId": "Marcos Rudaski",
+      "displayName": "Marcos",
+      "language": "fr",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.marcos_rudaski.fr.wav"
+    },
+    {
+      "id": "xtts.marcos_rudaski.ar",
+      "engine": "xtts",
+      "voiceId": "Marcos Rudaski",
+      "displayName": "Marcos",
+      "language": "ar",
+      "gender": "male",
+      "previewPath": "voice-library/xtts.marcos_rudaski.ar.wav"
+    }
+  ]
+}
