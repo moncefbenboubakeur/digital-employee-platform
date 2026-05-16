@@ -257,20 +257,16 @@ export function usePrototypeStore(options: StoreOptions = {}) {
         })
         setEvents((current) => [event, ...current])
 
-        try {
-          await fetch('/api/events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              question,
-              language,
-              cacheHit: true,
-              answerId: result.answer.id,
-            }),
-          })
-        } catch {
-          setSyncStatus('offline')
-        }
+        void fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question,
+            language,
+            cacheHit: true,
+            answerId: result.answer.id,
+          }),
+        }).catch(() => setSyncStatus('offline'))
 
         return {
           type: 'known',
@@ -287,22 +283,18 @@ export function usePrototypeStore(options: StoreOptions = {}) {
       })
       setEvents((current) => [event, ...current])
 
-      try {
-        await Promise.all([
-          fetch('/api/events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question, language, cacheHit: false }),
-          }),
+      void Promise.all([
+        fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, language, cacheHit: false }),
+        }),
           fetch('/api/unknown-questions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question, language }),
-          }),
-        ])
-      } catch {
-        setSyncStatus('offline')
-      }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, language }),
+        }),
+      ]).catch(() => setSyncStatus('offline'))
 
       return {
         type: 'unknown',

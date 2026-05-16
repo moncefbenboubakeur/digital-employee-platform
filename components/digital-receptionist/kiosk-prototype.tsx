@@ -372,7 +372,7 @@ function PilotContextPanel({
 }
 
 export function KioskPrototype() {
-  const { actions, answers, askQuestion, profile, syncStatus } = usePrototypeStore({ admin: false })
+  const { actions, answers, askQuestion, profile, syncStatus, voiceSettings } = usePrototypeStore({ admin: false })
   const [language, setLanguage] = useState<DemoLanguage>(profile.defaultLanguage)
   const [question, setQuestion] = useState('')
   const [isThinking, setIsThinking] = useState(false)
@@ -385,9 +385,11 @@ export function KioskPrototype() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
+  const audioAbortRef = useRef<AbortController | null>(null)
   const shouldSpeakNextRef = useRef(false)
   const voiceEnabledRef = useRef(true)
   const staffAction = actions.find((action) => action.id === 'staff-help')
+  const selectedVoicePresetId = voiceSettings[language]
   const [displayAnswer, setDisplayAnswer] = useState<DisplayAnswer>(() => ({
     mode: 'known',
   }))
@@ -464,6 +466,7 @@ export function KioskPrototype() {
       if (timerRef.current) {
         clearTimeout(timerRef.current)
       }
+      audioAbortRef.current?.abort()
       audioRef.current?.pause()
       window.speechSynthesis?.cancel()
       if (registeredVoiceListener) {
@@ -478,6 +481,8 @@ export function KioskPrototype() {
   }, [voiceEnabled])
 
   const stopSpeaking = useCallback(() => {
+    audioAbortRef.current?.abort()
+    audioAbortRef.current = null
     audioRef.current?.pause()
     audioRef.current = null
     if (audioObjectUrlRef.current) {
@@ -531,12 +536,29 @@ export function KioskPrototype() {
       setIsVoicePreparing(true)
 
       let objectUrl: string | null = null
+      const controller = new AbortController()
+      let timedOut = false
+      const timeoutId = window.setTimeout(() => {
+        timedOut = true
+        controller.abort()
+      }, 20000)
+      audioAbortRef.current = controller
 
       try {
-        const response = await fetch(
-          `/api/answer-audio?answerId=${encodeURIComponent(answerId)}&language=${encodeURIComponent(language)}`,
-          { cache: 'force-cache' }
-        )
+        const params = new URLSearchParams({
+          answerId,
+          language,
+          v: '2',
+        })
+
+        if (selectedVoicePresetId) {
+          params.set('presetId', selectedVoicePresetId)
+        }
+
+        const response = await fetch(`/api/answer-audio?${params.toString()}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
 
         if (!response.ok || !voiceEnabledRef.current) {
           throw new Error('Cached answer audio is not available.')
@@ -586,10 +608,17 @@ export function KioskPrototype() {
         }
         setIsVoicePreparing(false)
         setIsSpeaking(false)
-        speakBrowserText(text)
+        if (!controller.signal.aborted || timedOut) {
+          speakBrowserText(text)
+        }
+      } finally {
+        window.clearTimeout(timeoutId)
+        if (audioAbortRef.current === controller) {
+          audioAbortRef.current = null
+        }
       }
     },
-    [language, speakBrowserText, stopSpeaking]
+    [language, selectedVoicePresetId, speakBrowserText, stopSpeaking]
   )
 
   const speakAnswer = useCallback(
