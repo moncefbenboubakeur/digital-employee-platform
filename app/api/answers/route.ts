@@ -6,6 +6,7 @@ import {
   getKioskPayload,
   saveAnswer,
 } from '@/lib/digital-receptionist/server/repository'
+import { startAudioCacheWarmJob } from '@/lib/digital-receptionist/server/voice-audio'
 
 export async function GET(request: NextRequest) {
   const admin = request.nextUrl.searchParams.get('admin') === '1'
@@ -27,7 +28,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json()) as { answer?: unknown }
-  return NextResponse.json(await saveAnswer(body.answer as never))
+  const payload = await saveAnswer(body.answer as never)
+  const audioCacheJob = await startAudioCacheWarmJob({ mode: 'missing' })
+
+  return NextResponse.json({ ...payload, audioCacheJob })
 }
 
 export async function PUT(request: NextRequest) {

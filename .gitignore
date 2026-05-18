@@ -13,3 +13,5 @@ storage/voice-library/*.wav
 *.db
 *.sqlite
 *.sqlite3
+tsconfig.tsbuildinfo
+tmp/

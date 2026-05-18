@@ -29,6 +29,7 @@ model Location {
   currentWaitJson    String
   liveStatusJson     String
   voiceSettingsJson  String            @default("{}")
+  fallbackResponseJson String          @default("{}")
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)

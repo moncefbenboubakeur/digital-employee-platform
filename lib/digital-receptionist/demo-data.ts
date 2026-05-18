@@ -37,6 +37,7 @@ export type PilotProfile = {
   defaultLanguage: DemoLanguage
   currentWait: LocalizedText
   liveStatus: LocalizedText
+  fallbackResponse: LocalizedText
   counters: PilotCounter[]
 }
 
@@ -209,6 +210,11 @@ export const pilotProfile: PilotProfile = {
     ar: 'وضع تجريبي محلي بدون ذكاء اصطناعي خارجي',
     fr: 'Démo locale sans appel IA externe',
     en: 'Local demo with no external AI call',
+  },
+  fallbackResponse: {
+    ar: 'لا أملك جوابا مؤكدا لهذا السؤال بعد. تم حفظ السؤال للمراجعة، ويمكن لموظف الاستقبال مساعدتك الآن.',
+    fr: 'Je n’ai pas encore une réponse validée pour cette question. La demande est enregistrée pour révision, et un agent peut vous aider maintenant.',
+    en: 'I do not have an approved answer for this yet. The question was saved for review, and a staff member can help you now.',
   },
   counters: [
     {

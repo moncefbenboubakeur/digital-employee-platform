@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createPilotSnapshot, parsePilotSnapshot } from '@/lib/digital-receptionist/pilot-config'
 import { isAdminRequest } from '@/lib/digital-receptionist/server/auth'
 import { getAdminPayload, importSnapshot, resetPilot } from '@/lib/digital-receptionist/server/repository'
+import { startAudioCacheWarmJob } from '@/lib/digital-receptionist/server/voice-audio'
 
 export async function GET(request: NextRequest) {
   if (!isAdminRequest(request)) {
@@ -26,7 +27,9 @@ export async function POST(request: NextRequest) {
   }
 
   const raw = await request.text()
-  return NextResponse.json(await importSnapshot(parsePilotSnapshot(raw)))
+  const payload = await importSnapshot(parsePilotSnapshot(raw))
+  const audioCacheJob = await startAudioCacheWarmJob({ mode: 'missing' })
+  return NextResponse.json({ ...payload, audioCacheJob })
 }
 
 export async function DELETE(request: NextRequest) {
@@ -34,5 +37,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  return NextResponse.json(await resetPilot())
+  const payload = await resetPilot()
+  const audioCacheJob = await startAudioCacheWarmJob({ mode: 'missing' })
+  return NextResponse.json({ ...payload, audioCacheJob })
 }

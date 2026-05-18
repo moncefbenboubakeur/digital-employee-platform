@@ -7,6 +7,7 @@ import {
   markUnknownQuestion,
   recordUnknownQuestion,
 } from '@/lib/digital-receptionist/server/repository'
+import { startAudioCacheWarmJob } from '@/lib/digital-receptionist/server/voice-audio'
 
 export async function GET(request: NextRequest) {
   if (!isAdminRequest(request)) {
@@ -46,13 +47,14 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (body.answerText) {
-    return NextResponse.json(
-      await approveUnknownQuestion({
-        candidateId: body.candidateId,
-        answerText: body.answerText,
-        actionId: body.actionId,
-      })
-    )
+    const payload = await approveUnknownQuestion({
+      candidateId: body.candidateId,
+      answerText: body.answerText,
+      actionId: body.actionId,
+    })
+    const audioCacheJob = await startAudioCacheWarmJob({ mode: 'missing' })
+
+    return NextResponse.json({ ...payload, audioCacheJob })
   }
 
   if (body.status === 'rejected' || body.status === 'out_of_scope') {

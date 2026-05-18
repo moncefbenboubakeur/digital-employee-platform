@@ -44,6 +44,43 @@ type LocalizedDisplayAnswer = DisplayAnswer & {
   badge: string
 }
 
+// xtts generation can stretch past 10 minutes under contention with a running warm
+// job; match the server-side ceiling so live fetches don't bail to browser TTS early.
+const answerAudioTimeoutMs = 600000
+
+// Mirrored from lib/digital-receptionist/server/voice-audio.ts. Used as the
+// answer id when requesting cached audio for the "I don't have an approved
+// answer yet…" fallback line so visitors hear the selected xtts voice
+// instead of the browser default for unknown questions.
+const FALLBACK_ANSWER_ID = '__fallback__'
+
+// Opt-in client-side audit log for the kiosk audio pipeline. Enable via:
+//   localStorage.setItem('dr-kiosk-debug', '1') ; location.reload()
+function kioskDebugEnabled() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  try {
+    return window.localStorage.getItem('dr-kiosk-debug') === '1'
+  } catch {
+    return false
+  }
+}
+
+function kioskDebug(message: string, data?: Record<string, unknown>) {
+  if (!kioskDebugEnabled()) {
+    return
+  }
+  console.log(`[KIOSK] ${message}`, data ?? {})
+}
+
+function kioskDebugWarn(message: string, data?: Record<string, unknown>) {
+  if (!kioskDebugEnabled()) {
+    return
+  }
+  console.warn(`[KIOSK] ${message}`, data ?? {})
+}
+
 const quickQuestionIds = [
   'who-are-you',
   'services',
@@ -372,7 +409,7 @@ function PilotContextPanel({
 }
 
 export function KioskPrototype() {
-  const { actions, answers, askQuestion, profile, syncStatus, voiceSettings } = usePrototypeStore({ admin: false })
+  const { actions, answers, askQuestion, cachedAudio, profile, syncStatus, voiceSettings } = usePrototypeStore({ admin: false })
   const [language, setLanguage] = useState<DemoLanguage>(profile.defaultLanguage)
   const [question, setQuestion] = useState('')
   const [isThinking, setIsThinking] = useState(false)
@@ -500,6 +537,12 @@ export function KioskPrototype() {
       return
     }
 
+    kioskDebug('using browser TTS', {
+      language,
+      selectedVoicePresetId,
+      reason: 'speakBrowserText invoked',
+    })
+
     window.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(text)
@@ -524,15 +567,44 @@ export function KioskPrototype() {
     }
 
     window.speechSynthesis.speak(utterance)
-  }, [isSpeechSupported, language, voices])
+  }, [isSpeechSupported, language, selectedVoicePresetId, voices])
+
+  const cachedAudioKeys = useMemo(() => {
+    return new Set(cachedAudio.map((entry) => `${entry.answerId}|${entry.language}|${entry.presetId}`))
+  }, [cachedAudio])
 
   const playCachedAnswerAudio = useCallback(
     async (answerId: string, text: string) => {
       if (!voiceEnabledRef.current || !text.trim()) {
+        kioskDebug('playCachedAnswerAudio skip', {
+          reason: !voiceEnabledRef.current ? 'voice-disabled' : 'empty-text',
+          answerId,
+          language,
+        })
         return
       }
 
       stopSpeaking()
+
+      if (!selectedVoicePresetId) {
+        kioskDebug('playCachedAnswerAudio no-preset → browser TTS', {
+          answerId,
+          language,
+        })
+        speakBrowserText(text)
+        return
+      }
+
+      const isCached = cachedAudioKeys.has(`${answerId}|${language}|${selectedVoicePresetId}`)
+
+      kioskDebug('playCachedAnswerAudio start', {
+        answerId,
+        language,
+        selectedVoicePresetId,
+        isCached,
+        cachedAudioCount: cachedAudioKeys.size,
+      })
+
       setIsVoicePreparing(true)
 
       let objectUrl: string | null = null
@@ -541,7 +613,7 @@ export function KioskPrototype() {
       const timeoutId = window.setTimeout(() => {
         timedOut = true
         controller.abort()
-      }, 20000)
+      }, answerAudioTimeoutMs)
       audioAbortRef.current = controller
 
       try {
@@ -551,13 +623,27 @@ export function KioskPrototype() {
           v: '2',
         })
 
+        if (isCached) {
+          params.set('cachedOnly', '1')
+        }
+
         if (selectedVoicePresetId) {
           params.set('presetId', selectedVoicePresetId)
         }
 
+        const fetchStart = Date.now()
         const response = await fetch(`/api/answer-audio?${params.toString()}`, {
           cache: 'no-store',
           signal: controller.signal,
+        })
+
+        kioskDebug('playCachedAnswerAudio response', {
+          answerId,
+          language,
+          status: response.status,
+          xVoiceCache: response.headers.get('x-voice-cache'),
+          xVoicePresetId: response.headers.get('x-voice-preset-id'),
+          elapsedMs: Date.now() - fetchStart,
         })
 
         if (!response.ok || !voiceEnabledRef.current) {
@@ -571,6 +657,7 @@ export function KioskPrototype() {
         audioRef.current = audio
 
         audio.onplay = () => {
+          kioskDebug('cached audio playing', { answerId, language })
           setIsVoicePreparing(false)
           setIsSpeaking(true)
           setAvatarState('speaking')
@@ -588,6 +675,7 @@ export function KioskPrototype() {
           setAvatarState('idle')
         }
         audio.onerror = () => {
+          kioskDebugWarn('cached audio onerror → browser TTS', { answerId, language })
           if (audioRef.current === audio) {
             audioRef.current = null
           }
@@ -601,7 +689,14 @@ export function KioskPrototype() {
         }
 
         await audio.play()
-      } catch {
+      } catch (error) {
+        kioskDebugWarn('playCachedAnswerAudio threw', {
+          answerId,
+          language,
+          aborted: controller.signal.aborted,
+          timedOut,
+          error: error instanceof Error ? error.message : String(error),
+        })
         if (objectUrl && audioObjectUrlRef.current === objectUrl) {
           URL.revokeObjectURL(objectUrl)
           audioObjectUrlRef.current = null
@@ -618,11 +713,19 @@ export function KioskPrototype() {
         }
       }
     },
-    [language, selectedVoicePresetId, speakBrowserText, stopSpeaking]
+    [cachedAudioKeys, language, selectedVoicePresetId, speakBrowserText, stopSpeaking]
   )
 
   const speakAnswer = useCallback(
     (answer: LocalizedDisplayAnswer) => {
+      kioskDebug('speakAnswer', {
+        mode: answer.mode,
+        answerId: answer.answerId,
+        language,
+        selectedVoicePresetId,
+        voiceEnabled: voiceEnabledRef.current,
+      })
+
       if (!voiceEnabledRef.current || !answer.text.trim()) {
         return
       }
@@ -632,10 +735,13 @@ export function KioskPrototype() {
         return
       }
 
-      stopSpeaking()
-      speakBrowserText(answer.text)
+      // Unknown question — route through the cached xtts pipeline using a
+      // synthetic answer id so the visitor hears the fallback line in the
+      // selected voice instead of the browser default. If the cached file is
+      // missing playCachedAnswerAudio falls back to browser TTS internally.
+      void playCachedAnswerAudio(FALLBACK_ANSWER_ID, answer.text)
     },
-    [playCachedAnswerAudio, speakBrowserText, stopSpeaking]
+    [language, playCachedAnswerAudio, selectedVoicePresetId]
   )
 
   const toggleVoice = useCallback(() => {

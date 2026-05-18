@@ -129,6 +129,7 @@ export function normalizePilotProfile(value: unknown): PilotProfile {
     defaultLanguage: languageValue(value.defaultLanguage, pilotProfile.defaultLanguage),
     currentWait: normalizeLocalizedText(value.currentWait, pilotProfile.currentWait),
     liveStatus: normalizeLocalizedText(value.liveStatus, pilotProfile.liveStatus),
+    fallbackResponse: normalizeLocalizedText(value.fallbackResponse, pilotProfile.fallbackResponse),
     counters,
   }
 }

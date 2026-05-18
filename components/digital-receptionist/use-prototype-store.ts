@@ -25,6 +25,7 @@ import {
   parsePilotSnapshot,
   serializePilotSnapshot,
 } from '@/lib/digital-receptionist/pilot-config'
+import { getPilotScenario } from '@/lib/digital-receptionist/pilot-scenarios'
 import {
   createQuestionEvent,
   createUnknownQuestion,
@@ -51,6 +52,12 @@ type AskUnknownResult = {
 
 export type AskResult = AskKnownResult | AskUnknownResult
 
+export type CachedAudioEntry = {
+  answerId: string
+  language: DemoLanguage
+  presetId: string
+}
+
 type StorePayload = {
   profile?: PilotProfile
   actions?: DemoAction[]
@@ -61,6 +68,7 @@ type StorePayload = {
   devices?: KioskDeviceItem[]
   analytics?: PilotAnalytics
   voiceSettings?: VoiceSettings
+  cachedAudio?: CachedAudioEntry[]
 }
 
 type StoreOptions = {
@@ -133,6 +141,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
   const [devices, setDevices] = useState<KioskDeviceItem[]>([])
   const [analytics, setAnalytics] = useState<PilotAnalytics>(emptyAnalytics)
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(defaultVoiceSettings)
+  const [cachedAudio, setCachedAudio] = useState<CachedAudioEntry[]>([])
   const [loaded, setLoaded] = useState(false)
   const [syncStatus, setSyncStatus] = useState<'loading' | 'ready' | 'offline'>('loading')
 
@@ -174,6 +183,10 @@ export function usePrototypeStore(options: StoreOptions = {}) {
       setVoiceSettings((current) =>
         sameVoiceSettings(current, normalizedVoiceSettings) ? current : normalizedVoiceSettings
       )
+    }
+
+    if (payload.cachedAudio) {
+      setCachedAudio(payload.cachedAudio)
     }
 
     setLoaded(true)
@@ -315,6 +328,33 @@ export function usePrototypeStore(options: StoreOptions = {}) {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ profile: normalized }),
+          })
+        )
+      } catch {
+        setSyncStatus('offline')
+      }
+    },
+    [applyPayload]
+  )
+
+  const applyPilotScenario = useCallback(
+    async (scenarioId: string) => {
+      const scenario = getPilotScenario(scenarioId)
+
+      if (scenario) {
+        setProfile(normalizePilotProfile(scenario.profile))
+        setActions(scenario.actions)
+        setAnswers(normalizeAnswers(scenario.answers))
+        setUnknownQuestions(normalizeUnknownQuestions(scenario.unknownQuestions))
+        setEvents([])
+      }
+
+      try {
+        applyPayload(
+          await fetchJson<StorePayload>('/api/scenarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scenarioId }),
           })
         )
       } catch {
@@ -531,22 +571,24 @@ export function usePrototypeStore(options: StoreOptions = {}) {
     const activeUnknown = unknownQuestions.filter((question) => question.status === 'new')
 
     return {
-      totalQuestions: events.length + initialDemoAnswers.reduce((sum, answer) => sum + answer.usageCount, 0),
+      totalQuestions: events.length + answers.reduce((sum, answer) => sum + answer.usageCount, 0),
       sessionQuestions: events.length,
       cacheHitRate: getCacheHitRate(events),
       unknownCount: activeUnknown.length,
       topLanguage: events.length > 0 ? getTopLanguage(events) : 'fr',
       escalations: events.filter((event) => !event.cacheHit).length,
     }
-  }, [events, unknownQuestions])
+  }, [answers, events, unknownQuestions])
 
   return {
     actions,
     analytics,
     auditLogs,
     answers,
+    applyPilotScenario,
     askQuestion,
     approveUnknown,
+    cachedAudio,
     createAnswer,
     deleteAnswer,
     devices,

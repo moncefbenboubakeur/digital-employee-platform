@@ -1,6 +1,6 @@
 # Current State Checkpoint
 
-Updated: 2026-05-16
+Updated: 2026-05-17
 
 ## Latest Session Update
 
@@ -37,6 +37,8 @@ The prototype now has the first convincing pilot loop for a Lite First reception
   - `/api/voice-library/preview/[id]`
   - `/api/voice-settings`
   - `/api/answer-audio`
+  - `/api/scenarios`
+  - `/api/audio-cache`
 - admin and kiosk now share backend data instead of browser-only storage
 - admin setup, FAQ editor, review queue, reset, and import/export now write through API routes
 - imported the AlgeriaTechGen local voice library:
@@ -52,6 +54,23 @@ The prototype now has the first convincing pilot loop for a Lite First reception
   - cached known-answer WAV request returned `x-voice-cache: hit`
   - admin Settings showed the 98-preset voice library
   - kiosk unknown question -> admin approval -> kiosk reused approved answer
+- latest build pass added reusable Algerian pilot scenarios:
+  - APC Civil Status Desk
+  - Algérie Poste Branch
+  - Mall Information Desk
+- admin setup now has a scenario chooser that applies a full package:
+  profile, counters, action cards, approved answers, and review-queue examples
+- home page is now a customer walkthrough page instead of a simple demo switcher
+- Settings now includes an approved-answer audio cache panel:
+  generate missing audio, regenerate all or one language, and purge unused voice experiments older than 2 days
+- latest voice-cache fix:
+  - selected Settings voices are now warmed and used consistently for French, English, and Arabic
+  - `/api/pilot` starts a missing-audio warm job when selected voice files are absent
+  - saving an approved answer or approving an unknown question starts missing-audio warming
+  - audio warm job state now lives on `globalThis` so Next dev route bundles share one job state
+  - audio generation timeout now honors `VOICE_COMMAND_TIMEOUT_SEC` up to 600 seconds
+  - warm order prioritizes the pilot default language, then French, English, and Arabic
+  - current City Center Mall cache is complete: 24/24 files, 8/8 per language, 0 failures
 
 Default local admin password:
 
@@ -374,8 +393,8 @@ Prefer commercial APIs or owned lightweight avatar rendering for paid pilots.
 Current next completed:
 
 ```txt
-Built the shared pilot backend, protected admin console, operations/settings views,
-imported voice preset management, and cached local WAV answer audio for the kiosk.
+Added reusable Algerian pilot scenarios, an admin scenario chooser, a scenario
+apply API, and a clearer customer walkthrough home page.
 ```
 
 Prototype routes:
@@ -413,12 +432,16 @@ Current implementation includes:
 - audit/activity view
 - analytics dashboard
 - pilot import/export and reset
+- reusable pilot scenario templates for APC, Algérie Poste, and mall reception
+- admin scenario chooser that swaps the pilot profile, counters, actions, answers, and review queue
+- home-page walkthrough for testing a customer demo
+- admin audio-cache warming and stale voice cleanup
 
 Do next:
 
 ```txt
-Customize the first real Algerian pilot scenario, then prepare a deployment/demo package
-for a live customer walkthrough.
+Run the scenario walkthrough with the user, choose the first real customer vertical,
+then polish the kiosk/admin UI around that vertical for a live customer meeting.
 ```
 
 ## Full Handoff Status
@@ -443,7 +466,7 @@ The clean startup root contains a minimal Next.js app for the Lite First Digital
 
 Implemented routes:
 
-- `/` demo switcher
+- `/` customer walkthrough / scenario overview
 - `/kiosk` visitor-facing multilingual kiosk
 - `/admin` protected admin dashboard
 - `/admin/login` simple local password login
@@ -470,6 +493,8 @@ Implemented prototype behavior:
 - operations/audit view
 - pilot analytics
 - import/export/reset
+- scenario presets through `/api/scenarios`
+- admin scenario chooser in Pilot setup
 - localStorage only for browser preferences/local fallback
 
 Not implemented yet:
@@ -510,6 +535,7 @@ Prototype logic/data:
 
 ```txt
 lib/digital-receptionist/demo-data.ts
+lib/digital-receptionist/pilot-scenarios.ts
 lib/digital-receptionist/prototype-logic.ts
 lib/digital-receptionist/prototype-logic.test.ts
 lib/digital-receptionist/voice-lite.ts
@@ -545,6 +571,35 @@ npm run build
 ```
 
 All passed after fixes.
+
+Latest verification on 2026-05-17 also passed:
+
+```txt
+npm test
+npm run lint
+npm run build
+```
+
+Additional smoke on 2026-05-17:
+
+- `/`, `/kiosk`, `/admin/login`, `/api/pilot`, and `/api/scenarios` returned 200.
+- `/api/scenarios` returned `apc-civil-status`, `algerie-poste-branch`, and `mall-information-desk`.
+- Admin API login worked with the local default password.
+- Applying Algérie Poste through `/api/scenarios` worked, then APC reset worked.
+- Headless browser smoke passed:
+  admin scenario chooser -> apply Algérie Poste -> kiosk shows Algérie Poste -> reset to APC.
+- French voice timeout fix:
+  the kiosk now waits up to 115 seconds for first-time local WAV generation.
+  This was needed because `xtts.rosemary_okafor.fr` took about 88 seconds to generate
+  the first uncached answer, while the old client timeout aborted after 20 seconds.
+- Audio cache pre-generation feature:
+  `/api/audio-cache` reports cache readiness, starts background warm-up jobs,
+  and deletes non-selected voice files that have not been accessed for 2 days.
+  Saving changed voice settings starts a regeneration job for the changed languages.
+  Audio playback marks cache files as accessed so the purge policy has a real signal.
+  The kiosk requests approved-answer WAV files with `cachedOnly=1`, so it does not
+  block visitors with live generation when audio is missing; missing audio falls back
+  immediately to browser TTS while admins warm the cache.
 
 Smoke-tested with HTTP/browser requests:
 
@@ -589,11 +644,11 @@ npm run dev -- -p 3010
 
 ### Recommended Next Work
 
-1. Choose the first real Algerian pilot scenario: municipal office, post office branch, mall info desk, company reception, or Sonelgaz/Sonatrach-style enterprise reception.
-2. Customize `lib/digital-receptionist/demo-data.ts` with that location's real services, counters, hours, documents, and QR actions.
-3. Curate the default Arabic/French/English voices in admin Settings and pre-generate audio for the top 10 approved answers.
-4. Improve kiosk polish after live browser review: Arabic RTL, large-screen readability, voice loading states, and admin ergonomics.
-5. Add an explicit pilot demo checklist and seed reset flow for customer walkthroughs.
+1. Use the admin scenario chooser to demo APC, Algérie Poste, and mall reception flows.
+2. Choose the first real Algerian pilot vertical for outreach.
+3. Customize the winning scenario with real services, counters, hours, documents, and QR actions.
+4. Curate the default Arabic/French/English voices in admin Settings and pre-generate audio for the top 10 approved answers.
+5. Improve kiosk polish after live browser review: Arabic RTL, large-screen readability, voice loading states, and admin ergonomics.
 6. Consider initializing git for `DigitalEmployeePlatform`.
 
 ### Prompt For New Codex Session
@@ -615,7 +670,7 @@ npm run build
 Then start or reuse the dev server:
 npm run dev -- -p 3010
 
-Next task: pick and customize the first real Algerian pilot scenario, curate voices, pre-generate top answer audio, and tighten kiosk/admin polish for a customer walkthrough.
+Next task: open /admin, apply each pilot scenario from Pilot setup, test /kiosk with known and unknown questions, then choose the first real customer vertical and polish that scenario for a live walkthrough.
 ```
 
 ## Immediate Next Step
@@ -628,7 +683,7 @@ When continuing, start here:
 4. Start `npm run dev -- -p 3010`.
 5. Open `/kiosk` and ask "What papers do I need?" to confirm cached WAV playback.
 6. Open `/admin` -> Settings and verify the Voice library panel.
-7. Customize the first pilot scenario and pre-generate the most important answer audio.
+7. Apply APC, Algérie Poste, and mall scenarios from `/admin`, test each one in `/kiosk`, then pick the first real customer vertical.
 
 Suggested first implementation approach:
 

@@ -1,0 +1,645 @@
+import {
+  demoActions,
+  fallbackResponse,
+  initialDemoAnswers,
+  initialUnknownQuestions,
+  pilotProfile,
+  type DemoAction,
+  type DemoAnswer,
+  type PilotProfile,
+  type UnknownQuestion,
+} from './demo-data'
+
+export type PilotScenario = {
+  id: string
+  title: string
+  customerType: string
+  recommendedFor: string
+  description: string
+  valueProposition: string
+  demoTalkTrack: string[]
+  profile: PilotProfile
+  actions: DemoAction[]
+  answers: DemoAnswer[]
+  unknownQuestions: UnknownQuestion[]
+}
+
+export type PilotScenarioSummary = Pick<
+  PilotScenario,
+  'id' | 'title' | 'customerType' | 'recommendedFor' | 'description' | 'valueProposition' | 'demoTalkTrack'
+>
+
+const today = '2026-05-17'
+
+const apcScenario: PilotScenario = {
+  id: 'apc-civil-status',
+  title: 'APC Civil Status Desk',
+  customerType: 'Municipal/public service',
+  recommendedFor: 'First pilot because it has repeated questions, clear counters, and high visitor volume.',
+  description: 'A citizen-facing reception assistant for civil-status services in a local Algerian municipality.',
+  valueProposition:
+    'Reduce repeated staff interruptions for documents, counters, opening hours, and incomplete files.',
+  demoTalkTrack: [
+    'Open the kiosk and ask where to renew a civil-status document.',
+    'Show the answer directing the visitor to the correct counter with a QR checklist.',
+    'Ask an unsupported question, then approve it in the admin review queue.',
+    'Return to the kiosk and show that the new answer is reusable.',
+  ],
+  profile: pilotProfile,
+  actions: demoActions,
+  answers: initialDemoAnswers,
+  unknownQuestions: initialUnknownQuestions,
+}
+
+const posteActions: DemoAction[] = [
+  {
+    id: 'renewal-checklist',
+    type: 'qr',
+    label: {
+      ar: 'قائمة وثائق CCP',
+      fr: 'Pièces CCP',
+      en: 'CCP checklist',
+    },
+    description: {
+      ar: 'امسح الرمز لمعرفة وثائق البطاقة الذهبية، الصك، وكشف الحساب.',
+      fr: 'Scannez pour voir les pièces pour Edahabia, chèque CCP et relevé de compte.',
+      en: 'Scan to see documents for Edahabia card, CCP cheque, and account statement requests.',
+    },
+    value: 'poste-ccp-checklist',
+  },
+  {
+    id: 'counter-3',
+    type: 'direction',
+    label: {
+      ar: 'شباك الحسابات',
+      fr: 'Guichet CCP',
+      en: 'CCP counter',
+    },
+    description: {
+      ar: 'لخدمات CCP والبطاقة الذهبية، اتجه إلى الشباك 2.',
+      fr: 'Pour CCP et carte Edahabia, allez au guichet 2.',
+      en: 'For CCP and Edahabia card services, go to counter 2.',
+    },
+    value: 'poste-counter-2',
+  },
+  {
+    id: 'info-desk',
+    type: 'direction',
+    label: {
+      ar: 'الاستعلامات',
+      fr: 'Accueil information',
+      en: 'Information desk',
+    },
+    description: {
+      ar: 'مكتب الاستعلامات موجود عند المدخل بجانب آلة التذاكر.',
+      fr: 'L’accueil information est à l’entrée, près du distributeur de tickets.',
+      en: 'The information desk is at the entrance, next to the ticket machine.',
+    },
+    value: 'poste-information',
+  },
+  {
+    id: 'office-contact',
+    type: 'contact',
+    label: {
+      ar: 'اتصل بالمكتب',
+      fr: 'Contacter le bureau',
+      en: 'Contact the branch',
+    },
+    description: {
+      ar: 'للمتابعة اتصل على 1530 أو اسأل مكتب الاستعلامات.',
+      fr: 'Pour le suivi, appelez le 1530 ou demandez à l’accueil.',
+      en: 'For follow-up, call 1530 or ask the information desk.',
+    },
+    value: '1530',
+  },
+  {
+    id: 'staff-help',
+    type: 'escalation',
+    label: {
+      ar: 'مساعدة موظف',
+      fr: 'Aide d’un agent',
+      en: 'Staff help',
+    },
+    description: {
+      ar: 'إذا كان الطلب مرتبطا بحساب شخصي، اطلب مساعدة موظف في المكتب.',
+      fr: 'Si la demande concerne un compte personnel, demandez l’aide d’un agent.',
+      en: 'If the request concerns a personal account, ask a staff member for help.',
+    },
+    value: 'poste-staff-help',
+  },
+]
+
+const posteProfile: PilotProfile = {
+  tenantName: {
+    ar: 'بريد الجزائر',
+    fr: 'Algérie Poste',
+    en: 'Algeria Post',
+  },
+  locationName: {
+    ar: 'مكتب باب الزوار',
+    fr: 'Bureau Bab Ezzouar',
+    en: 'Bab Ezzouar branch',
+  },
+  welcomeTitle: {
+    ar: 'مساعدة رقمية لتوجيه زبائن البريد',
+    fr: 'Assistante digitale pour orienter les clients du bureau',
+    en: 'Digital assistant for branch visitor guidance',
+  },
+  serviceSummary: {
+    ar: 'توجه الزوار نحو خدمات CCP، البطاقة الذهبية، الطرود، التذاكر، والمساعدة البشرية.',
+    fr: 'Oriente vers les services CCP, carte Edahabia, colis, tickets et assistance humaine.',
+    en: 'Guides visitors to CCP, Edahabia card, parcel, ticketing, and staff-assistance services.',
+  },
+  privacyNote: {
+    ar: 'لا تدخل رقم الحساب أو رقم البطاقة في هذا النموذج التجريبي.',
+    fr: 'Ne saisissez pas de numéro de compte ou de carte dans cette démonstration.',
+    en: 'Do not enter account or card numbers in this demo.',
+  },
+  openingHours: {
+    ar: 'من الأحد إلى الخميس، من 8:00 صباحا إلى 5:00 مساء.',
+    fr: 'Du dimanche au jeudi, de 8h00 à 17h00.',
+    en: 'Sunday to Thursday, from 8:00 AM to 5:00 PM.',
+  },
+  contactNumber: '1530',
+  defaultLanguage: 'fr',
+  currentWait: {
+    ar: 'الانتظار التقريبي: 18 دقيقة',
+    fr: 'Attente estimée : 18 min',
+    en: 'Estimated wait: 18 min',
+  },
+  liveStatus: {
+    ar: 'وضع Lite First لتخفيض التكلفة',
+    fr: 'Mode Lite First pour contrôler le coût',
+    en: 'Lite First mode for cost control',
+  },
+  fallbackResponse,
+  counters: [
+    {
+      id: 'poste-ccp',
+      label: { ar: 'خدمات CCP', fr: 'Services CCP', en: 'CCP services' },
+      status: { ar: 'الشباك 2', fr: 'Guichet 2', en: 'Counter 2' },
+    },
+    {
+      id: 'poste-parcels',
+      label: { ar: 'الطرود والبريد', fr: 'Colis et courrier', en: 'Parcels and mail' },
+      status: { ar: 'الشباك 4', fr: 'Guichet 4', en: 'Counter 4' },
+    },
+    {
+      id: 'poste-info',
+      label: { ar: 'التوجيه والتذاكر', fr: 'Orientation et tickets', en: 'Guidance and tickets' },
+      status: { ar: 'عند المدخل', fr: 'À l’entrée', en: 'At the entrance' },
+    },
+  ],
+}
+
+const posteAnswers: DemoAnswer[] = [
+  {
+    id: 'who-are-you',
+    canonicalQuestion: { ar: 'من أنت؟', fr: 'Qui êtes-vous ?', en: 'Who are you?' },
+    answerText: {
+      ar: 'أنا آمال، مساعدة رقمية لهذا المكتب البريدي. أساعدك في اختيار الخدمة، التذكرة، والشباك المناسب.',
+      fr: 'Je suis Amel, l’assistante digitale de ce bureau de poste. Je vous aide à choisir le service, le ticket et le bon guichet.',
+      en: 'I am Amel, the digital assistant for this post office. I help you choose the right service, ticket, and counter.',
+    },
+    keywords: ['who', 'assistant', 'amel', 'poste', 'post', 'qui', 'êtes', 'vous', 'من', 'أنت', 'بريد'],
+    usageCount: 15,
+    lastUpdated: today,
+    category: 'identity',
+    published: true,
+  },
+  {
+    id: 'services',
+    canonicalQuestion: { ar: 'ما هي الخدمات المتوفرة؟', fr: 'Quels services sont disponibles ?', en: 'What services are available?' },
+    answerText: {
+      ar: 'الخدمات الرئيسية هي CCP، البطاقة الذهبية، الطرود، إرسال البريد، وسحب التذاكر للانتظار.',
+      fr: 'Les services principaux sont CCP, carte Edahabia, colis, envoi de courrier et retrait de tickets.',
+      en: 'The main services are CCP, Edahabia card, parcels, mail sending, and queue ticketing.',
+    },
+    keywords: ['service', 'services', 'ccp', 'edahabia', 'carte', 'colis', 'mail', 'خدمات', 'البطاقة', 'ذهبية', 'طرود'],
+    usageCount: 40,
+    lastUpdated: today,
+    category: 'services',
+    published: true,
+  },
+  {
+    id: 'document-renewal-counter',
+    canonicalQuestion: { ar: 'أين أذهب لخدمات CCP؟', fr: 'Où aller pour les services CCP ?', en: 'Where do I go for CCP services?' },
+    answerText: {
+      ar: 'لخدمات CCP والبطاقة الذهبية، اسحب تذكرة ثم اتجه إلى الشباك 2 عندما يظهر رقمك.',
+      fr: 'Pour les services CCP et carte Edahabia, prenez un ticket puis allez au guichet 2 quand votre numéro s’affiche.',
+      en: 'For CCP and Edahabia card services, take a ticket then go to counter 2 when your number appears.',
+    },
+    keywords: ['ccp', 'where', 'counter', 'guichet', 'edahabia', 'carte', 'أين', 'شباك', 'ذهبية'],
+    actionId: 'counter-3',
+    usageCount: 54,
+    lastUpdated: today,
+    category: 'navigation',
+    published: true,
+  },
+  {
+    id: 'required-documents',
+    canonicalQuestion: { ar: 'ما هي الوثائق المطلوبة؟', fr: 'Quels documents faut-il ?', en: 'What documents do I need?' },
+    answerText: {
+      ar: 'عادة تحتاج بطاقة التعريف، رقم الحساب CCP، والاستمارة المناسبة حسب الخدمة المطلوبة.',
+      fr: 'En général, il faut une pièce d’identité, le numéro CCP et le formulaire adapté au service demandé.',
+      en: 'Usually you need an ID, CCP account number, and the relevant form for the requested service.',
+    },
+    keywords: ['documents', 'papers', 'id', 'ccp', 'formulaire', 'pièce', 'وثائق', 'بطاقة', 'استمارة'],
+    actionId: 'renewal-checklist',
+    usageCount: 65,
+    lastUpdated: today,
+    category: 'documents',
+    published: true,
+  },
+  {
+    id: 'languages',
+    canonicalQuestion: { ar: 'هل يمكنني التحدث بالعربية أو الفرنسية أو الإنجليزية؟', fr: 'Puis-je parler arabe, français ou anglais ?', en: 'Can I speak Arabic, French, or English?' },
+    answerText: {
+      ar: 'نعم، اختر العربية أو الفرنسية أو الإنجليزية من أعلى الشاشة.',
+      fr: 'Oui, choisissez arabe, français ou anglais en haut de l’écran.',
+      en: 'Yes, choose Arabic, French, or English at the top of the screen.',
+    },
+    keywords: ['language', 'arabe', 'français', 'english', 'لغة', 'عربية', 'فرنسية'],
+    usageCount: 18,
+    lastUpdated: today,
+    category: 'language',
+    published: true,
+  },
+  {
+    id: 'opening-hours',
+    canonicalQuestion: { ar: 'ما هي أوقات العمل؟', fr: 'Quels sont les horaires ?', en: 'What are the opening hours?' },
+    answerText: {
+      ar: 'المكتب مفتوح من الأحد إلى الخميس، من 8:00 صباحا إلى 5:00 مساء.',
+      fr: 'Le bureau est ouvert du dimanche au jeudi, de 8h00 à 17h00.',
+      en: 'The branch is open Sunday to Thursday, from 8:00 AM to 5:00 PM.',
+    },
+    keywords: ['hours', 'open', 'horaires', 'ouvert', 'وقت', 'أوقات', 'مفتوح'],
+    usageCount: 32,
+    lastUpdated: today,
+    category: 'services',
+    published: true,
+  },
+  {
+    id: 'which-counter',
+    canonicalQuestion: { ar: 'لا أعرف أي شباك أحتاج.', fr: 'Je ne sais pas quel guichet choisir.', en: 'I do not know which counter I need.' },
+    answerText: {
+      ar: 'ابدأ بمكتب الاستعلامات عند المدخل. سيحدد الموظف نوع التذكرة أو الشباك المناسب.',
+      fr: 'Commencez par l’accueil à l’entrée. L’agent vous indiquera le type de ticket ou le bon guichet.',
+      en: 'Start at the information desk near the entrance. Staff will tell you the right ticket or counter.',
+    },
+    keywords: ['counter', 'ticket', 'guichet', 'not sure', 'لا أعرف', 'شباك', 'تذكرة'],
+    actionId: 'info-desk',
+    usageCount: 23,
+    lastUpdated: today,
+    category: 'navigation',
+    published: true,
+  },
+  {
+    id: 'qr-code',
+    canonicalQuestion: { ar: 'هل يمكنني مسح رمز QR؟', fr: 'Puis-je scanner un code QR ?', en: 'Can I scan a QR code?' },
+    answerText: {
+      ar: 'نعم، يمكنك مسح الرمز لفتح قائمة وثائق CCP والبطاقة الذهبية.',
+      fr: 'Oui, vous pouvez scanner le code pour ouvrir la liste des pièces CCP et Edahabia.',
+      en: 'Yes, scan the code to open the CCP and Edahabia document checklist.',
+    },
+    keywords: ['qr', 'scan', 'scanner', 'code', 'رمز', 'مسح'],
+    actionId: 'renewal-checklist',
+    usageCount: 16,
+    lastUpdated: today,
+    category: 'documents',
+    published: true,
+  },
+  {
+    id: 'contact-office',
+    canonicalQuestion: { ar: 'كيف أتصل بالمكتب؟', fr: 'Comment contacter le bureau ?', en: 'How do I contact the branch?' },
+    answerText: {
+      ar: 'للمتابعة العامة اتصل على 1530 أو اطلب المساعدة من مكتب الاستعلامات.',
+      fr: 'Pour le suivi général, appelez le 1530 ou demandez à l’accueil information.',
+      en: 'For general follow-up, call 1530 or ask the information desk.',
+    },
+    keywords: ['contact', 'phone', '1530', 'contacter', 'téléphone', 'اتصال', 'هاتف'],
+    actionId: 'office-contact',
+    usageCount: 11,
+    lastUpdated: today,
+    category: 'support',
+    published: true,
+  },
+]
+
+const mallActions: DemoAction[] = [
+  {
+    id: 'renewal-checklist',
+    type: 'qr',
+    label: { ar: 'خريطة المركز', fr: 'Plan du centre', en: 'Mall map' },
+    description: {
+      ar: 'امسح الرمز لفتح خريطة المحلات، المطاعم، والمواقف.',
+      fr: 'Scannez pour ouvrir le plan des boutiques, restaurants et parkings.',
+      en: 'Scan to open the map for shops, restaurants, and parking.',
+    },
+    value: 'mall-map',
+  },
+  {
+    id: 'counter-3',
+    type: 'direction',
+    label: { ar: 'مكتب الاستقبال', fr: 'Point information', en: 'Information desk' },
+    description: {
+      ar: 'مكتب الاستقبال موجود في الطابق الأرضي قرب المدخل الرئيسي.',
+      fr: 'Le point information est au rez-de-chaussée près de l’entrée principale.',
+      en: 'The information desk is on the ground floor near the main entrance.',
+    },
+    value: 'ground-floor-info',
+  },
+  {
+    id: 'info-desk',
+    type: 'direction',
+    label: { ar: 'الطابق الأرضي', fr: 'Rez-de-chaussée', en: 'Ground floor' },
+    description: {
+      ar: 'اتجه إلى الطابق الأرضي، بجانب المصاعد.',
+      fr: 'Allez au rez-de-chaussée, près des ascenseurs.',
+      en: 'Go to the ground floor, next to the elevators.',
+    },
+    value: 'ground-floor',
+  },
+  {
+    id: 'office-contact',
+    type: 'contact',
+    label: { ar: 'اتصل بالأمن', fr: 'Contacter la sécurité', en: 'Contact security' },
+    description: {
+      ar: 'للمفقودات أو الحالات العاجلة، اتصل بالأمن الداخلي.',
+      fr: 'Pour les objets perdus ou urgences, contactez la sécurité.',
+      en: 'For lost items or urgent issues, contact mall security.',
+    },
+    value: 'security-desk',
+  },
+  {
+    id: 'staff-help',
+    type: 'escalation',
+    label: { ar: 'مساعدة بشرية', fr: 'Aide humaine', en: 'Human help' },
+    description: {
+      ar: 'يمكن لموظف الاستقبال مساعدتك في الاتجاهات أو المفقودات.',
+      fr: 'Un agent d’accueil peut vous aider pour les directions ou objets perdus.',
+      en: 'A reception agent can help with directions or lost items.',
+    },
+    value: 'mall-staff-help',
+  },
+]
+
+const mallProfile: PilotProfile = {
+  tenantName: { ar: 'مركز التسوق سيتي سنتر', fr: 'City Center Mall', en: 'City Center Mall' },
+  locationName: { ar: 'مكتب الاستقبال الرئيسي', fr: 'Point information principal', en: 'Main information desk' },
+  welcomeTitle: {
+    ar: 'مساعدة رقمية لتوجيه الزوار داخل المركز',
+    fr: 'Assistante digitale pour orienter les visiteurs du centre',
+    en: 'Digital assistant for mall visitor guidance',
+  },
+  serviceSummary: {
+    ar: 'تساعد في العثور على المحلات، المطاعم، المواقف، المفقودات، والمرافق.',
+    fr: 'Aide à trouver boutiques, restaurants, parking, objets perdus et services.',
+    en: 'Helps visitors find shops, restaurants, parking, lost items, and facilities.',
+  },
+  privacyNote: {
+    ar: 'لا تدخل معلومات الدفع أو بيانات شخصية في هذا النموذج.',
+    fr: 'Ne saisissez pas de données de paiement ou personnelles dans cette démo.',
+    en: 'Do not enter payment or personal details in this demo.',
+  },
+  openingHours: {
+    ar: 'كل يوم من 10:00 صباحا إلى 10:00 مساء.',
+    fr: 'Tous les jours de 10h00 à 22h00.',
+    en: 'Every day from 10:00 AM to 10:00 PM.',
+  },
+  contactNumber: '0550 00 00 00',
+  defaultLanguage: 'fr',
+  currentWait: {
+    ar: 'الاستقبال متاح الآن',
+    fr: 'Accueil disponible maintenant',
+    en: 'Information desk available now',
+  },
+  liveStatus: {
+    ar: 'وضع Lite First مناسب للشاشات العامة',
+    fr: 'Mode Lite First adapté aux écrans publics',
+    en: 'Lite First mode for public screens',
+  },
+  fallbackResponse,
+  counters: [
+    { id: 'mall-info', label: { ar: 'الاستقبال', fr: 'Information', en: 'Information' }, status: { ar: 'الطابق الأرضي', fr: 'Rez-de-chaussée', en: 'Ground floor' } },
+    { id: 'mall-food', label: { ar: 'المطاعم', fr: 'Restaurants', en: 'Restaurants' }, status: { ar: 'الطابق الثاني', fr: '2e étage', en: 'Second floor' } },
+    { id: 'mall-parking', label: { ar: 'المواقف', fr: 'Parking', en: 'Parking' }, status: { ar: 'P1 و P2', fr: 'P1 et P2', en: 'P1 and P2' } },
+  ],
+}
+
+const mallAnswers: DemoAnswer[] = [
+  {
+    id: 'who-are-you',
+    canonicalQuestion: { ar: 'من أنت؟', fr: 'Qui êtes-vous ?', en: 'Who are you?' },
+    answerText: {
+      ar: 'أنا آمال، مساعدة رقمية في مركز التسوق. أساعدك في الاتجاهات، المحلات، المواقف، والمفقودات.',
+      fr: 'Je suis Amel, l’assistante digitale du centre. Je vous aide avec les directions, boutiques, parking et objets perdus.',
+      en: 'I am Amel, the mall digital assistant. I help with directions, shops, parking, and lost items.',
+    },
+    keywords: ['who', 'assistant', 'mall', 'qui', 'vous', 'من', 'أنت', 'مول', 'مركز'],
+    usageCount: 20,
+    lastUpdated: today,
+    category: 'identity',
+    published: true,
+  },
+  {
+    id: 'services',
+    canonicalQuestion: { ar: 'ما هي الخدمات المتوفرة؟', fr: 'Quels services sont disponibles ?', en: 'What services are available?' },
+    answerText: {
+      ar: 'يمكنني مساعدتك في خريطة المحلات، المطاعم، المواقف، دورات المياه، المصاعد، والمفقودات.',
+      fr: 'Je peux vous aider avec le plan des boutiques, restaurants, parkings, toilettes, ascenseurs et objets perdus.',
+      en: 'I can help with the shop map, restaurants, parking, restrooms, elevators, and lost items.',
+    },
+    keywords: ['services', 'shops', 'restaurants', 'parking', 'toilets', 'boutiques', 'محلات', 'مطاعم', 'مواقف'],
+    usageCount: 47,
+    lastUpdated: today,
+    category: 'services',
+    published: true,
+  },
+  {
+    id: 'document-renewal-counter',
+    canonicalQuestion: { ar: 'أين مكتب الاستقبال؟', fr: 'Où est le point information ?', en: 'Where is the information desk?' },
+    answerText: {
+      ar: 'مكتب الاستقبال موجود في الطابق الأرضي قرب المدخل الرئيسي والمصاعد.',
+      fr: 'Le point information est au rez-de-chaussée près de l’entrée principale et des ascenseurs.',
+      en: 'The information desk is on the ground floor near the main entrance and elevators.',
+    },
+    keywords: ['information', 'desk', 'where', 'accueil', 'point information', 'أين', 'استقبال'],
+    actionId: 'counter-3',
+    usageCount: 34,
+    lastUpdated: today,
+    category: 'navigation',
+    published: true,
+  },
+  {
+    id: 'required-documents',
+    canonicalQuestion: { ar: 'أين المواقف؟', fr: 'Où est le parking ?', en: 'Where is parking?' },
+    answerText: {
+      ar: 'المواقف موجودة في P1 و P2. استخدم المدخل الجنوبي للوصول الأسرع.',
+      fr: 'Le parking se trouve aux niveaux P1 et P2. Utilisez l’entrée sud pour un accès plus rapide.',
+      en: 'Parking is available at P1 and P2. Use the south entrance for faster access.',
+    },
+    keywords: ['parking', 'park', 'voiture', 'p1', 'p2', 'موقف', 'مواقف', 'سيارة'],
+    actionId: 'info-desk',
+    usageCount: 51,
+    lastUpdated: today,
+    category: 'navigation',
+    published: true,
+  },
+  {
+    id: 'languages',
+    canonicalQuestion: { ar: 'هل يمكنني التحدث بالعربية أو الفرنسية أو الإنجليزية؟', fr: 'Puis-je parler arabe, français ou anglais ?', en: 'Can I speak Arabic, French, or English?' },
+    answerText: {
+      ar: 'نعم، يمكنك اختيار العربية أو الفرنسية أو الإنجليزية من أعلى الشاشة.',
+      fr: 'Oui, vous pouvez choisir arabe, français ou anglais en haut de l’écran.',
+      en: 'Yes, you can choose Arabic, French, or English at the top of the screen.',
+    },
+    keywords: ['language', 'langue', 'arabe', 'english', 'لغة', 'عربية'],
+    usageCount: 14,
+    lastUpdated: today,
+    category: 'language',
+    published: true,
+  },
+  {
+    id: 'opening-hours',
+    canonicalQuestion: { ar: 'ما هي أوقات العمل؟', fr: 'Quels sont les horaires ?', en: 'What are the opening hours?' },
+    answerText: {
+      ar: 'المركز مفتوح كل يوم من 10:00 صباحا إلى 10:00 مساء.',
+      fr: 'Le centre est ouvert tous les jours de 10h00 à 22h00.',
+      en: 'The mall is open every day from 10:00 AM to 10:00 PM.',
+    },
+    keywords: ['hours', 'open', 'horaires', 'ouvert', 'أوقات', 'مفتوح'],
+    usageCount: 29,
+    lastUpdated: today,
+    category: 'services',
+    published: true,
+  },
+  {
+    id: 'which-counter',
+    canonicalQuestion: { ar: 'لا أعرف أين أذهب.', fr: 'Je ne sais pas où aller.', en: 'I do not know where to go.' },
+    answerText: {
+      ar: 'ابدأ بمكتب الاستقبال في الطابق الأرضي. يمكن للموظف توجيهك حسب المحل أو الخدمة.',
+      fr: 'Commencez par le point information au rez-de-chaussée. Un agent vous orientera selon la boutique ou le service.',
+      en: 'Start at the ground-floor information desk. Staff will guide you based on the shop or service.',
+    },
+    keywords: ['where', 'not sure', 'lost', 'où', 'perdu', 'أين', 'تائه', 'لا أعرف'],
+    actionId: 'counter-3',
+    usageCount: 37,
+    lastUpdated: today,
+    category: 'navigation',
+    published: true,
+  },
+  {
+    id: 'qr-code',
+    canonicalQuestion: { ar: 'هل يمكنني مسح رمز QR؟', fr: 'Puis-je scanner un code QR ?', en: 'Can I scan a QR code?' },
+    answerText: {
+      ar: 'نعم، امسح الرمز لفتح خريطة المركز على هاتفك.',
+      fr: 'Oui, scannez le code pour ouvrir le plan du centre sur votre téléphone.',
+      en: 'Yes, scan the code to open the mall map on your phone.',
+    },
+    keywords: ['qr', 'scan', 'map', 'plan', 'carte', 'رمز', 'خريطة'],
+    actionId: 'renewal-checklist',
+    usageCount: 18,
+    lastUpdated: today,
+    category: 'navigation',
+    published: true,
+  },
+]
+
+export const pilotScenarios: PilotScenario[] = [
+  apcScenario,
+  {
+    id: 'algerie-poste-branch',
+    title: 'Algérie Poste Branch',
+    customerType: 'Public service / branch network',
+    recommendedFor: 'A second pilot where queueing, documents, and multilingual guidance are highly visible.',
+    description: 'A branch assistant for CCP, Edahabia, parcels, ticketing, and information desk routing.',
+    valueProposition:
+      'Reduce queue confusion and route visitors before they reach the wrong counter.',
+    demoTalkTrack: [
+      'Apply the Algérie Poste scenario from admin setup.',
+      'Ask the kiosk where to go for CCP services and show counter routing.',
+      'Ask what documents are needed and show the QR checklist.',
+      'Explain that the same backend can run across many branch locations later.',
+    ],
+    profile: posteProfile,
+    actions: posteActions,
+    answers: posteAnswers,
+    unknownQuestions: [
+      {
+        id: 'unknown-poste-edahabia-delay',
+        question: 'Ma carte Edahabia n’est pas arrivée. Que faire ?',
+        language: 'fr',
+        fallbackResponse,
+        count: 2,
+        confidence: 'medium',
+        status: 'new',
+        createdAt: '2026-05-17T09:00:00.000Z',
+      },
+      {
+        id: 'unknown-poste-family-pickup',
+        question: 'Can my brother pick up my parcel?',
+        language: 'en',
+        fallbackResponse,
+        count: 1,
+        confidence: 'low',
+        status: 'new',
+        createdAt: '2026-05-17T09:20:00.000Z',
+      },
+    ],
+  },
+  {
+    id: 'mall-information-desk',
+    title: 'Mall Information Desk',
+    customerType: 'Retail / mall reception',
+    recommendedFor: 'A commercial pilot with simple routing, map, parking, and lost-item questions.',
+    description: 'A mall assistant for directions, shops, restaurants, parking, restrooms, and lost items.',
+    valueProposition:
+      'Give visitors quick directions while keeping staffing and avatar costs low.',
+    demoTalkTrack: [
+      'Apply the mall scenario from admin setup.',
+      'Ask where parking is, then show the direction card.',
+      'Ask for the QR map and show the phone-friendly action panel.',
+      'Show that the same product can serve small malls with Lite First pricing.',
+    ],
+    profile: mallProfile,
+    actions: mallActions,
+    answers: mallAnswers,
+    unknownQuestions: [
+      {
+        id: 'unknown-mall-prayer-room',
+        question: 'Où est la salle de prière ?',
+        language: 'fr',
+        fallbackResponse,
+        count: 3,
+        confidence: 'medium',
+        status: 'new',
+        createdAt: '2026-05-17T10:30:00.000Z',
+      },
+      {
+        id: 'unknown-mall-stroller',
+        question: 'هل يمكنني استعارة عربة أطفال؟',
+        language: 'ar',
+        fallbackResponse,
+        count: 1,
+        confidence: 'low',
+        status: 'new',
+        createdAt: '2026-05-17T11:15:00.000Z',
+      },
+    ],
+  },
+]
+
+export const pilotScenarioSummaries: PilotScenarioSummary[] = pilotScenarios.map((scenario) => ({
+  id: scenario.id,
+  title: scenario.title,
+  customerType: scenario.customerType,
+  recommendedFor: scenario.recommendedFor,
+  description: scenario.description,
+  valueProposition: scenario.valueProposition,
+  demoTalkTrack: scenario.demoTalkTrack,
+}))
+
+export function getPilotScenario(id: string) {
+  return pilotScenarios.find((scenario) => scenario.id === id)
+}

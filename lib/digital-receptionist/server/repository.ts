@@ -21,7 +21,6 @@ import {
   type QuestionEvent as UiQuestionEvent,
 } from '../demo-data'
 import {
-  createPilotSnapshot,
   normalizeAnswers,
   normalizeLocalizedText,
   normalizePilotProfile,
@@ -29,12 +28,14 @@ import {
   normalizeUnknownQuestions,
   type PilotSnapshot,
 } from '../pilot-config'
+import { getPilotScenario } from '../pilot-scenarios'
 import { createQuestionEvent, createUnknownQuestion, promoteCandidateToAnswer } from '../prototype-logic'
 import {
   defaultVoiceSettings,
   normalizeVoiceSettings,
   type VoiceSettings,
 } from '../voice-library'
+import { listCachedAnswerAudio, type CachedAnswerAudioRef } from './answer-audio-manifest'
 import { setAdminPassword } from './auth'
 import { defaultLocationId, prisma } from './db'
 
@@ -66,6 +67,7 @@ export type KioskPayload = {
   actions: DemoAction[]
   answers: DemoAnswer[]
   voiceSettings: VoiceSettings
+  cachedAudio: CachedAnswerAudioRef[]
 }
 
 export type AdminPayload = KioskPayload & {
@@ -108,6 +110,7 @@ function locationToProfile(location: Location, counters: Counter[]): PilotProfil
     defaultLanguage: location.defaultLanguage,
     currentWait: parseJson(location.currentWaitJson),
     liveStatus: parseJson(location.liveStatusJson),
+    fallbackResponse: parseJson(location.fallbackResponseJson),
     counters: counters
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((counter) => ({
@@ -290,6 +293,7 @@ export async function ensureDefaultPilot() {
           defaultLanguage: pilotProfile.defaultLanguage,
           currentWaitJson: toJson(pilotProfile.currentWait),
           liveStatusJson: toJson(pilotProfile.liveStatus),
+          fallbackResponseJson: toJson(pilotProfile.fallbackResponse),
           voiceSettingsJson: toJson(defaultVoiceSettings),
           counters: {
             create: pilotProfile.counters.map((counter, index) => ({
@@ -341,40 +345,47 @@ export async function ensureDefaultPilot() {
 
 export async function getKioskPayload(): Promise<KioskPayload> {
   await ensureDefaultPilot()
-  const location = await prisma.location.findUniqueOrThrow({
-    where: { id: defaultLocationId },
-    include: {
-      counters: true,
-      actions: true,
-      answers: {
-        where: { published: true },
-        orderBy: { updatedAt: 'desc' },
+  const [location, cachedAudio] = await Promise.all([
+    prisma.location.findUniqueOrThrow({
+      where: { id: defaultLocationId },
+      include: {
+        counters: true,
+        actions: true,
+        answers: {
+          where: { published: true },
+          orderBy: { updatedAt: 'desc' },
+        },
       },
-    },
-  })
+    }),
+    listCachedAnswerAudio(),
+  ])
 
   return {
     profile: locationToProfile(location, location.counters),
     actions: location.actions.map(actionToUi),
     answers: location.answers.map(answerToUi),
     voiceSettings: normalizeVoiceSettings(parseJson(location.voiceSettingsJson)),
+    cachedAudio,
   }
 }
 
 export async function getAdminPayload(): Promise<AdminPayload> {
   await ensureDefaultPilot()
-  const location = await prisma.location.findUniqueOrThrow({
-    where: { id: defaultLocationId },
-    include: {
-      counters: true,
-      actions: true,
-      answers: { orderBy: { updatedAt: 'desc' } },
-      unknownQuestions: { orderBy: { updatedAt: 'desc' } },
-      questionEvents: { orderBy: { createdAt: 'desc' }, take: 250 },
-      auditLogs: { orderBy: { createdAt: 'desc' }, take: 100 },
-      devices: { orderBy: { updatedAt: 'desc' } },
-    },
-  })
+  const [location, cachedAudio] = await Promise.all([
+    prisma.location.findUniqueOrThrow({
+      where: { id: defaultLocationId },
+      include: {
+        counters: true,
+        actions: true,
+        answers: { orderBy: { updatedAt: 'desc' } },
+        unknownQuestions: { orderBy: { updatedAt: 'desc' } },
+        questionEvents: { orderBy: { createdAt: 'desc' }, take: 250 },
+        auditLogs: { orderBy: { createdAt: 'desc' }, take: 100 },
+        devices: { orderBy: { updatedAt: 'desc' } },
+      },
+    }),
+    listCachedAnswerAudio(),
+  ])
   const answers = location.answers.map(answerToUi)
   const unknownQuestions = location.unknownQuestions.map(unknownToUi)
   const events = location.questionEvents.map(eventToUi)
@@ -384,6 +395,7 @@ export async function getAdminPayload(): Promise<AdminPayload> {
     actions: location.actions.map(actionToUi),
     answers,
     voiceSettings: normalizeVoiceSettings(parseJson(location.voiceSettingsJson)),
+    cachedAudio,
     unknownQuestions,
     events,
     devices: location.devices.map(deviceToUi),
@@ -487,6 +499,7 @@ export async function saveProfile(profile: PilotProfile) {
         defaultLanguage: normalized.defaultLanguage,
         currentWaitJson: toJson(normalized.currentWait),
         liveStatusJson: toJson(normalized.liveStatus),
+        fallbackResponseJson: toJson(normalized.fallbackResponse),
       },
     })
     await tx.counter.deleteMany({ where: { locationId: defaultLocationId } })
@@ -508,6 +521,114 @@ export async function saveProfile(profile: PilotProfile) {
         entityType: 'pilot_profile',
         entityId: defaultLocationId,
         summary: 'Updated pilot profile and visible counters.',
+      },
+    })
+  })
+
+  return getAdminPayload()
+}
+
+export async function applyPilotScenario(scenarioId: string) {
+  const scenario = getPilotScenario(scenarioId)
+
+  if (!scenario) {
+    throw new Error(`Unknown pilot scenario: ${scenarioId}`)
+  }
+
+  const profile = normalizePilotProfile(scenario.profile)
+  const answers = normalizeAnswers(scenario.answers)
+  const unknownQuestions = normalizeUnknownQuestions(scenario.unknownQuestions)
+
+  await ensureDefaultPilot()
+  await prisma.$transaction(async (tx) => {
+    const location = await tx.location.findUniqueOrThrow({
+      where: { id: defaultLocationId },
+      select: { tenantId: true },
+    })
+
+    await tx.questionEvent.deleteMany({ where: { locationId: defaultLocationId } })
+    await tx.unknownQuestion.deleteMany({ where: { locationId: defaultLocationId } })
+    await tx.answer.deleteMany({ where: { locationId: defaultLocationId } })
+    await tx.visitorAction.deleteMany({ where: { locationId: defaultLocationId } })
+    await tx.counter.deleteMany({ where: { locationId: defaultLocationId } })
+
+    await tx.tenant.update({
+      where: { id: location.tenantId },
+      data: {
+        name: profile.tenantName.fr || profile.tenantName.en || profile.tenantName.ar,
+      },
+    })
+    await tx.location.update({
+      where: { id: defaultLocationId },
+      data: {
+        tenantNameJson: toJson(profile.tenantName),
+        locationNameJson: toJson(profile.locationName),
+        welcomeTitleJson: toJson(profile.welcomeTitle),
+        serviceSummaryJson: toJson(profile.serviceSummary),
+        privacyNoteJson: toJson(profile.privacyNote),
+        openingHoursJson: toJson(profile.openingHours),
+        contactNumber: profile.contactNumber,
+        defaultLanguage: profile.defaultLanguage,
+        currentWaitJson: toJson(profile.currentWait),
+        liveStatusJson: toJson(profile.liveStatus),
+        fallbackResponseJson: toJson(profile.fallbackResponse),
+      },
+    })
+    await tx.counter.createMany({
+      data: profile.counters.map((counter, index) => ({
+        id: counter.id,
+        locationId: defaultLocationId,
+        labelJson: toJson(counter.label),
+        statusJson: toJson(counter.status),
+        sortOrder: index,
+      })),
+    })
+    await tx.visitorAction.createMany({
+      data: scenario.actions.map((action) => ({
+        id: action.id,
+        locationId: defaultLocationId,
+        type: action.type,
+        labelJson: toJson(action.label),
+        descriptionJson: toJson(action.description),
+        value: action.value,
+      })),
+    })
+    await tx.answer.createMany({
+      data: answers.map((answer) => ({
+        id: answer.id,
+        locationId: defaultLocationId,
+        canonicalQuestionJson: toJson(answer.canonicalQuestion),
+        answerTextJson: toJson(answer.answerText),
+        keywordsJson: toJson(answer.keywords),
+        actionId: answer.actionId,
+        usageCount: answer.usageCount,
+        lastUpdated: answer.lastUpdated,
+        category: answer.category,
+        published: answer.published,
+      })),
+    })
+    await tx.unknownQuestion.createMany({
+      data: unknownQuestions.map((question) => ({
+        id: question.id,
+        locationId: defaultLocationId,
+        question: question.question,
+        language: question.language,
+        fallbackResponseJson: toJson(question.fallbackResponse),
+        count: question.count,
+        confidence: question.confidence,
+        status: question.status,
+        createdAt: new Date(question.createdAt),
+      })),
+    })
+    await tx.auditLog.create({
+      data: {
+        id: `audit-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        locationId: defaultLocationId,
+        actor: 'admin',
+        action: 'apply',
+        entityType: 'pilot_scenario',
+        entityId: scenario.id,
+        summary: `Applied pilot scenario: ${scenario.title}.`,
       },
     })
   })
@@ -719,6 +840,7 @@ export async function importSnapshot(snapshot: PilotSnapshot) {
         defaultLanguage: profile.defaultLanguage,
         currentWaitJson: toJson(profile.currentWait),
         liveStatusJson: toJson(profile.liveStatus),
+        fallbackResponseJson: toJson(profile.fallbackResponse),
       },
     })
     await tx.counter.createMany({
@@ -785,14 +907,7 @@ export async function importSnapshot(snapshot: PilotSnapshot) {
 }
 
 export async function resetPilot() {
-  return importSnapshot(
-    createPilotSnapshot({
-      profile: pilotProfile,
-      answers: initialDemoAnswers,
-      unknownQuestions: initialUnknownQuestions,
-      events: [],
-    })
-  )
+  return applyPilotScenario('apc-civil-status')
 }
 
 export async function updateAdminPassword(password: string) {

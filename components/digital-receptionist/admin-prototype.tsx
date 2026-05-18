@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   ArrowUpRight,
   BarChart3,
   Check,
   Copy,
+  Cpu,
   Download,
   FileJson,
   KeyRound,
@@ -15,11 +16,13 @@ import {
   MessageSquarePlus,
   MessageSquareWarning,
   MonitorCheck,
+  Play,
   Plus,
   RotateCcw,
   Save,
   Settings2,
   ShieldCheck,
+  Square,
   Trash2,
   Upload,
   WalletCards,
@@ -43,6 +46,7 @@ import {
   formatKeywordDraft,
   parseKeywordDraft,
 } from '@/lib/digital-receptionist/pilot-config'
+import { pilotScenarios, type PilotScenario } from '@/lib/digital-receptionist/pilot-scenarios'
 import { usePrototypeStore } from './use-prototype-store'
 import type { AuditLogItem, KioskDeviceItem, PilotAnalytics } from './use-prototype-store'
 import {
@@ -240,11 +244,105 @@ function AdminTabs({
   )
 }
 
+function scenarioMatchesProfile(scenario: PilotScenario, profile: PilotProfile) {
+  return (
+    scenario.profile.tenantName.fr === profile.tenantName.fr &&
+    scenario.profile.locationName.fr === profile.locationName.fr
+  )
+}
+
+function ScenarioChooser({
+  profile,
+  applyPilotScenario,
+}: {
+  profile: PilotProfile
+  applyPilotScenario: (scenarioId: string) => Promise<void>
+}) {
+  const [applyingId, setApplyingId] = useState<string>()
+  const activeScenarioId = pilotScenarios.find((scenario) =>
+    scenarioMatchesProfile(scenario, profile)
+  )?.id
+
+  const handleApply = async (scenarioId: string) => {
+    setApplyingId(scenarioId)
+    await applyPilotScenario(scenarioId)
+    setApplyingId(undefined)
+  }
+
+  return (
+    <section className="rounded-lg border border-cyan-100 bg-cyan-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-950">Pilot scenarios</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Apply a complete Algerian demo package before customizing the location.
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-800">
+          {pilotScenarios.length} templates
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {pilotScenarios.map((scenario) => {
+          const active = activeScenarioId === scenario.id
+          const applying = applyingId === scenario.id
+
+          return (
+            <article
+              key={scenario.id}
+              className={`rounded-lg border bg-white p-4 shadow-sm ${
+                active ? 'border-cyan-500 ring-2 ring-cyan-100' : 'border-slate-200'
+              }`}
+            >
+              <div className="flex min-h-40 flex-col">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">
+                      {scenario.customerType}
+                    </p>
+                    <h4 className="mt-2 text-base font-semibold text-slate-950">{scenario.title}</h4>
+                  </div>
+                  {active ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                      <Check className="size-3" />
+                      Active
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">{scenario.description}</p>
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-700">
+                  {scenario.valueProposition}
+                </p>
+                <button
+                  className={`mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold ${
+                    active
+                      ? 'border border-cyan-200 bg-cyan-50 text-cyan-800'
+                      : 'bg-cyan-700 text-white hover:bg-cyan-800'
+                  }`}
+                  disabled={applying}
+                  type="button"
+                  onClick={() => void handleApply(scenario.id)}
+                >
+                  <RotateCcw className="size-4" />
+                  {applying ? 'Applying' : active ? 'Reapply' : 'Apply scenario'}
+                </button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function PilotSetupPanel({
   profile,
+  applyPilotScenario,
   savePilotProfile,
 }: {
   profile: PilotProfile
+  applyPilotScenario: (scenarioId: string) => Promise<void>
   savePilotProfile: (profile: PilotProfile) => Promise<void>
 }) {
   const [draft, setDraft] = useState(profile)
@@ -288,6 +386,8 @@ function PilotSetupPanel({
       </div>
 
       <div className="mt-5 grid gap-5">
+        <ScenarioChooser profile={profile} applyPilotScenario={applyPilotScenario} />
+
         <LocalizedFieldSet
           label="Tenant name"
           value={draft.tenantName}
@@ -1218,6 +1318,33 @@ function VoicePresetRow({
 }) {
   const presets = catalog.presets.filter((preset) => preset.language === language)
   const selectedPreset = presets.find((preset) => preset.id === selectedId) ?? presets[0]
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const lastAutoPlayedIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    const presetId = selectedPreset?.id ?? null
+
+    if (!audio || !presetId) {
+      return
+    }
+
+    if (lastAutoPlayedIdRef.current === null) {
+      // Skip the initial mount so the page doesn't blast audio on load.
+      lastAutoPlayedIdRef.current = presetId
+      return
+    }
+
+    if (lastAutoPlayedIdRef.current === presetId) {
+      return
+    }
+
+    lastAutoPlayedIdRef.current = presetId
+    audio.currentTime = 0
+    void audio.play().catch(() => {
+      // Browsers may block autoplay; the user can fall back to the controls.
+    })
+  }, [selectedPreset?.id])
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -1232,9 +1359,10 @@ function VoicePresetRow({
         </div>
         {selectedPreset ? (
           <audio
+            ref={audioRef}
             className="h-10 max-w-full"
             controls
-            preload="none"
+            preload="auto"
             src={`/api/voice-library/preview/${encodeURIComponent(selectedPreset.id)}`}
           />
         ) : null}
@@ -1261,6 +1389,613 @@ function VoicePresetRow({
   )
 }
 
+type AudioCacheLanguageSummary = {
+  language: DemoLanguage
+  presetId: string | null
+  total: number
+  ready: number
+  missing: number
+}
+
+type AudioCacheStatus = {
+  total: number
+  ready: number
+  missing: number
+  files: number
+  bytes: number
+  staleFiles: number
+  staleBytes: number
+  staleAfterDays: number
+  languages: AudioCacheLanguageSummary[]
+}
+
+type AudioCacheJob = {
+  id: string
+  status: 'running' | 'completed' | 'failed'
+  mode: 'missing' | 'regenerate'
+  languages: DemoLanguage[]
+  total: number
+  completed: number
+  generated: number
+  reused: number
+  failed: number
+  current?: {
+    answerId: string
+    language: DemoLanguage
+  }
+  errors: string[]
+  startedAt: string
+  finishedAt?: string
+}
+
+type AudioCachePayload = {
+  cache: AudioCacheStatus
+  job?: AudioCacheJob
+  cleanup?: {
+    deletedFiles: number
+    deletedBytes: number
+    staleAfterDays: number
+  }
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function FallbackResponsePanel({
+  profile,
+  savePilotProfile,
+}: {
+  profile: PilotProfile
+  savePilotProfile: (profile: PilotProfile) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<LocalizedText>(profile.fallbackResponse)
+  const [seenSignature, setSeenSignature] = useState(() => JSON.stringify(profile.fallbackResponse))
+  const [status, setStatus] = useState(
+    'Spoken in the selected xtts voice when a visitor asks an unknown question. Saving regenerates the cached audio for the new wording.'
+  )
+  const [saving, setSaving] = useState(false)
+  const savedSignature = JSON.stringify(profile.fallbackResponse)
+  const draftSignature = JSON.stringify(draft)
+  const dirty = draftSignature !== seenSignature
+
+  if (seenSignature !== savedSignature) {
+    setSeenSignature(savedSignature)
+    if (draftSignature === seenSignature) {
+      setDraft(profile.fallbackResponse)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setStatus('Saving fallback wording and re-warming audio in the background…')
+    try {
+      await savePilotProfile({ ...profile, fallbackResponse: draft })
+      setStatus('Fallback wording saved. The kiosk will pick up the new audio on its next poll.')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Save failed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+            <MessageSquareWarning className="size-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Fallback response</h2>
+            <p className="text-sm text-slate-500">
+              What the kiosk says when a visitor asks a question that has no approved answer yet.
+            </p>
+          </div>
+        </div>
+        <button
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+          disabled={!dirty || saving}
+          type="button"
+          onClick={() => void handleSave()}
+        >
+          <Save className="size-4" />
+          {saving ? 'Saving…' : 'Save fallback'}
+        </button>
+      </div>
+
+      <div className="mt-4">
+        <LocalizedFieldSet
+          label="Localized fallback wording"
+          multiline
+          value={draft}
+          onChange={setDraft}
+        />
+      </div>
+
+      <p className="mt-3 text-sm font-medium text-slate-600">{status}</p>
+    </div>
+  )
+}
+
+type VoiceWorkerStatus = {
+  enabled: boolean
+  state: 'stopped' | 'starting' | 'ready' | 'busy' | 'failed' | 'unavailable'
+  pid?: number
+  model?: string
+  device?: string
+  sampleRate?: number
+  warmupSeconds?: number
+  startedAt?: string
+  readyAt?: string
+  lastError?: string
+  pendingRequests: number
+  completed: number
+  failed: number
+}
+
+function VoiceWorkerPanel() {
+  const [status, setStatus] = useState<VoiceWorkerStatus>()
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('Persistent xtts worker keeps the ~1.5 GB model in RAM so each new voice clip takes seconds, not a minute.')
+
+  useEffect(() => {
+    let cancelled = false
+    let consecutiveFailures = 0
+
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/voice-worker', { cache: 'no-store' })
+        if (!response.ok) {
+          consecutiveFailures += 1
+          if (consecutiveFailures >= 3 && !cancelled) {
+            window.clearInterval(interval)
+          }
+          return
+        }
+        consecutiveFailures = 0
+        const data = (await response.json()) as VoiceWorkerStatus
+        if (!cancelled) {
+          setStatus(data)
+        }
+      } catch {
+        consecutiveFailures += 1
+        if (consecutiveFailures >= 3 && !cancelled) {
+          window.clearInterval(interval)
+        }
+      }
+    }
+
+    void refresh()
+    const interval = window.setInterval(refresh, 4000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  const send = async (action: 'start' | 'stop') => {
+    setBusy(true)
+    setMessage(action === 'start' ? 'Starting worker (model load can take 30–60s)…' : 'Stopping worker…')
+    try {
+      const response = await fetch('/api/voice-worker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!response.ok) {
+        setMessage(`Worker ${action} failed.`)
+        return
+      }
+      const data = (await response.json()) as VoiceWorkerStatus
+      setStatus(data)
+      if (data.state === 'ready') {
+        setMessage(`Worker ready on ${data.device ?? 'cpu'}${data.warmupSeconds ? ` (warmed up in ${data.warmupSeconds.toFixed(1)}s)` : ''}.`)
+      } else if (data.state === 'stopped') {
+        setMessage('Worker stopped. Next generation will fall back to a one-shot Python spawn.')
+      } else if (data.state === 'failed') {
+        setMessage(data.lastError ?? 'Worker failed to start.')
+      } else if (data.state === 'unavailable') {
+        setMessage('VOICE_WORKER_COMMAND env var is not configured. Falling back to legacy VOICE_COMMAND on every generation.')
+      } else {
+        setMessage(`Worker is ${data.state}.`)
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Worker command failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const isReady = status?.state === 'ready'
+  const isBusy = status?.state === 'busy'
+  const isStarting = status?.state === 'starting'
+  const isStopped = status?.state === 'stopped'
+  const isFailed = status?.state === 'failed'
+  const isUnavailable = status?.state === 'unavailable' || (status && !status.enabled)
+  const pillTone = isReady || isBusy
+    ? 'bg-emerald-100 text-emerald-800'
+    : isStarting
+      ? 'bg-amber-100 text-amber-800'
+      : isFailed
+        ? 'bg-rose-100 text-rose-800'
+        : isUnavailable
+          ? 'bg-slate-200 text-slate-700'
+          : 'bg-slate-100 text-slate-700'
+  const pillLabel = isUnavailable
+    ? 'Not configured'
+    : isStarting
+      ? 'Starting'
+      : isReady
+        ? 'Ready'
+        : isBusy
+          ? `Busy · ${status?.pendingRequests ?? 0} in flight`
+          : isFailed
+            ? 'Failed'
+            : 'Stopped'
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+            <Cpu className="size-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Persistent xtts worker</h2>
+            <p className="text-sm text-slate-500">
+              Keeps the Coqui XTTS model loaded in RAM so each generation skips Python startup.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${pillTone}`}>
+            {pillLabel}
+          </span>
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={busy || isReady || isBusy || isStarting || isUnavailable}
+            type="button"
+            onClick={() => void send('start')}
+          >
+            <Play className="size-4" />
+            Start worker
+          </button>
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={busy || isStopped || isUnavailable || (!isReady && !isBusy && !isStarting && !isFailed)}
+            type="button"
+            onClick={() => void send('stop')}
+          >
+            <Square className="size-4" />
+            Stop worker
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">PID</p>
+          <p className="mt-1 font-mono text-sm">{status?.pid ?? '—'}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Device</p>
+          <p className="mt-1 font-mono text-sm">{status?.device ?? '—'}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Warm-up</p>
+          <p className="mt-1 font-mono text-sm">
+            {status?.warmupSeconds != null ? `${status.warmupSeconds.toFixed(1)}s` : '—'}
+          </p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Served</p>
+          <p className="mt-1 font-mono text-sm">
+            {status ? `${status.completed} ok · ${status.failed} fail` : '—'}
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-3 text-sm font-medium text-slate-600">{message}</p>
+      {status?.lastError && !isReady && !isBusy ? (
+        <div className="mt-3 rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-800">
+          {status.lastError}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function AudioCachePanel() {
+  const [payload, setPayload] = useState<AudioCachePayload>()
+  const [status, setStatus] = useState('Audio cache status is loading.')
+  const job = payload?.job
+  const cache = payload?.cache
+  const jobRunning = job?.status === 'running'
+  // Use the on-disk cache count rather than the warm-job iteration tally — the
+  // latter can outpace reality when voice settings change mid-job (reused targets
+  // for stale presets get counted even though no file lands for the new preset).
+  const readyCount = cache?.ready ?? 0
+  const totalCount = cache?.total ?? job?.total ?? 0
+  const progress = totalCount > 0 ? Math.round((readyCount / totalCount) * 100) : 0
+
+  const loadStatus = useCallback(async () => {
+    const response = await fetch('/api/audio-cache', { cache: 'no-store' })
+
+    if (!response.ok) {
+      throw new Error('Audio cache status could not be loaded.')
+    }
+
+    const nextPayload = (await response.json()) as AudioCachePayload
+    setPayload(nextPayload)
+
+    if (nextPayload.job?.status === 'running') {
+      setStatus('Audio generation is running in the background.')
+    } else if (nextPayload.cache.missing === 0 && nextPayload.cache.total > 0) {
+      setStatus('All approved answers have cached audio for the selected voices.')
+    } else {
+      setStatus(`${nextPayload.cache.missing} approved-answer audio files still need generation.`)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let consecutiveFailures = 0
+
+    const refresh = async () => {
+      try {
+        await loadStatus()
+        consecutiveFailures = 0
+      } catch (error) {
+        consecutiveFailures += 1
+        if (!cancelled) {
+          setStatus(error instanceof Error ? error.message : 'Audio cache status could not be loaded.')
+        }
+        if (consecutiveFailures >= 3 && !cancelled) {
+          // Server is unreachable; freeze polling to avoid an ERR_CONNECTION_REFUSED storm.
+          window.clearInterval(interval)
+        }
+      }
+    }
+
+    void refresh()
+    const interval = window.setInterval(() => {
+      if (!cancelled) {
+        void refresh()
+      }
+    }, jobRunning ? 2500 : 7000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [jobRunning, loadStatus])
+
+  const startJob = async (mode: AudioCacheJob['mode'], languages?: DemoLanguage[]) => {
+    setStatus(mode === 'regenerate' ? 'Regeneration job queued.' : 'Missing-audio job queued.')
+    const response = await fetch('/api/audio-cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, languages }),
+    })
+
+    if (!response.ok) {
+      setStatus('Audio generation could not be started.')
+      return
+    }
+
+    setPayload((await response.json()) as AudioCachePayload)
+  }
+
+  const cleanup = async () => {
+    setStatus('Cleaning unused voice audio older than 2 days.')
+    const response = await fetch('/api/audio-cache?staleAfterDays=2', { method: 'DELETE' })
+
+    if (!response.ok) {
+      setStatus('Audio cleanup failed.')
+      return
+    }
+
+    const nextPayload = (await response.json()) as AudioCachePayload
+    setPayload(nextPayload)
+    setStatus(
+      `Deleted ${nextPayload.cleanup?.deletedFiles ?? 0} stale files (${formatBytes(nextPayload.cleanup?.deletedBytes ?? 0)}).`
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+            <Activity className="size-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Approved-answer audio cache</h2>
+            <p className="text-sm text-slate-500">
+              {cache ? `${cache.ready}/${cache.total} ready · ${formatBytes(cache.bytes)} stored` : 'Checking cache'}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={jobRunning || !cache || cache.missing === 0}
+            type="button"
+            onClick={() => void startJob('missing')}
+          >
+            <Volume2 className="size-4" />
+            Generate missing
+          </button>
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={jobRunning || !cache || cache.total === 0}
+            type="button"
+            onClick={() => void startJob('regenerate')}
+          >
+            <RotateCcw className="size-4" />
+            Regenerate all
+          </button>
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={jobRunning || !cache || cache.staleFiles === 0}
+            type="button"
+            onClick={() => void cleanup()}
+          >
+            <Trash2 className="size-4" />
+            Purge old voices
+          </button>
+        </div>
+      </div>
+
+      {job ? (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-800">
+              {job.status === 'running' ? 'Generating audio' : job.status === 'completed' ? 'Last job completed' : 'Last job had errors'}
+            </p>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+              {readyCount}/{totalCount} · {progress}%
+            </span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div className="h-full rounded-full bg-cyan-600" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="mt-3 text-sm text-slate-600">
+            Generated {job.generated}, reused {job.reused}, failed {job.failed}
+            {job.current ? ` · now ${job.current.answerId} (${job.current.language.toUpperCase()})` : ''}
+          </p>
+          {job.errors.length > 0 ? (
+            <div className="mt-3 rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-800">
+              {job.errors[0]}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {cache?.languages.map((item) => (
+          <article key={item.language} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-950">{languageName(item.language)}</p>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-600">
+                {item.ready}/{item.total}
+              </span>
+            </div>
+            <p className="mt-2 truncate text-xs font-medium text-slate-500">
+              {item.presetId ?? 'No selected voice'}
+            </p>
+            <button
+              className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={jobRunning || item.total === 0}
+              type="button"
+              onClick={() => void startJob('regenerate', [item.language])}
+            >
+              <RotateCcw className="size-3" />
+              Regenerate {item.language.toUpperCase()}
+            </button>
+          </article>
+        ))}
+      </div>
+
+      <p className="mt-3 text-sm font-medium text-slate-600">
+        {status}
+        {cache && cache.staleFiles > 0
+          ? ` ${cache.staleFiles} unused voice files are older than ${cache.staleAfterDays} days.`
+          : ''}
+      </p>
+    </div>
+  )
+}
+
+function WarmingProgress({
+  cache,
+  job,
+}: {
+  cache?: AudioCacheStatus
+  job?: AudioCacheJob
+}) {
+  if (!cache && !job) {
+    return (
+      <div className="mt-4 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-800">
+        Starting audio generation…
+      </div>
+    )
+  }
+
+  // Prefer the on-disk count for the headline number — the warm job's `completed`
+  // counter is just an iteration tally and can diverge from reality when voice
+  // settings change mid-job or stale files get reused.
+  const total = cache?.total ?? job?.total ?? 0
+  const ready = cache?.ready ?? 0
+  const percent = total > 0 ? Math.round((ready / total) * 100) : 0
+  const isRunning = job?.status === 'running'
+  const isFinished = !isRunning && cache && cache.missing === 0 && cache.total > 0
+
+  const headline = isRunning
+    ? 'Preparing kiosk audio in the selected voices…'
+    : isFinished
+      ? 'Kiosk audio ready in the selected voices.'
+      : job?.status === 'failed'
+        ? 'Some answers could not be generated.'
+        : `${ready}/${total} ready`
+
+  return (
+    <div
+      className={`mt-4 rounded-lg border p-3 ${
+        isFinished
+          ? 'border-emerald-200 bg-emerald-50'
+          : job?.status === 'failed'
+            ? 'border-rose-200 bg-rose-50'
+            : 'border-cyan-200 bg-cyan-50'
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={`text-sm font-semibold ${
+          isFinished ? 'text-emerald-800' : job?.status === 'failed' ? 'text-rose-800' : 'text-cyan-900'
+        }`}>
+          {headline}
+        </p>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+          {ready}/{total} · {percent}%
+        </span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${
+            isFinished ? 'bg-emerald-600' : job?.status === 'failed' ? 'bg-rose-600' : 'bg-cyan-600'
+          }`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      {job?.current ? (
+        <p className="mt-3 text-sm text-slate-700">
+          Now generating <span className="font-semibold">{job.current.answerId}</span>{' '}
+          ({job.current.language.toUpperCase()})
+        </p>
+      ) : null}
+      {isFinished ? (
+        <p className="mt-3 text-sm text-emerald-800">
+          You can open the kiosk now — answers will play instantly.
+        </p>
+      ) : isRunning ? (
+        <p className="mt-3 text-sm text-cyan-900">
+          You can open the kiosk and start testing already; pending answers will say “Preparing voice” until each finishes.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 function VoiceSettingsPanel({
   saveVoiceSettings,
   voiceSettings,
@@ -1274,9 +2009,13 @@ function VoiceSettingsPanel({
     voiceSettingsSignature(voiceSettings)
   )
   const [status, setStatus] = useState('Choose the kiosk voice per language.')
+  const [warmJob, setWarmJob] = useState<AudioCacheJob>()
+  const [warmCache, setWarmCache] = useState<AudioCacheStatus>()
+  const [showWarmProgress, setShowWarmProgress] = useState(false)
   const draftSignature = voiceSettingsSignature(draft)
   const savedSignature = voiceSettingsSignature(voiceSettings)
   const hasUnsavedChanges = draftSignature !== seenVoiceSettingsSignature
+  const warmJobRunning = warmJob?.status === 'running'
 
   if (seenVoiceSettingsSignature !== savedSignature) {
     const wasDraftClean = draftSignature === seenVoiceSettingsSignature
@@ -1307,6 +2046,53 @@ function VoiceSettingsPanel({
     }
   }, [])
 
+  useEffect(() => {
+    if (!showWarmProgress) {
+      return
+    }
+
+    // Stop polling once the warm has settled — keep the last snapshot on screen
+    // but don't keep hammering the server.
+    if (warmJob && warmJob.status !== 'running') {
+      return
+    }
+
+    let cancelled = false
+    let consecutiveFailures = 0
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch('/api/audio-cache', { cache: 'no-store' })
+        if (!response.ok) {
+          consecutiveFailures += 1
+          return
+        }
+        consecutiveFailures = 0
+        const data = (await response.json()) as AudioCachePayload
+        if (cancelled) {
+          return
+        }
+        setWarmJob(data.job)
+        setWarmCache(data.cache)
+      } catch {
+        consecutiveFailures += 1
+        if (consecutiveFailures >= 3 && !cancelled) {
+          // Server is unreachable; freeze the UI on the last known state instead
+          // of flooding the console with ERR_CONNECTION_REFUSED.
+          window.clearInterval(interval)
+        }
+      }
+    }
+
+    void fetchStatus()
+    const interval = window.setInterval(fetchStatus, warmJobRunning ? 1500 : 5000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [showWarmProgress, warmJob, warmJobRunning])
+
   const updateLanguage = (language: DemoLanguage, presetId: string) => {
     setDraft((current) => ({
       ...current,
@@ -1318,7 +2104,8 @@ function VoiceSettingsPanel({
   const handleSave = async () => {
     await saveVoiceSettings(draft)
     setSeenVoiceSettingsSignature(voiceSettingsSignature(draft))
-    setStatus('Voice settings saved. The next kiosk answer will generate or reuse audio for the selected preset.')
+    setShowWarmProgress(true)
+    setStatus('Voice settings saved. Warming approved-answer audio in the selected voices.')
   }
 
   const selectedCount = demoLanguages.filter((item) => draft[item.id]).length
@@ -1360,16 +2147,24 @@ function VoiceSettingsPanel({
         ))}
       </div>
 
+      {showWarmProgress ? (
+        <WarmingProgress cache={warmCache} job={warmJob} />
+      ) : null}
+
       <p className="mt-3 text-sm font-medium text-slate-600">{status}</p>
     </div>
   )
 }
 
 function SettingsPanel({
+  profile,
   saveVoiceSettings,
+  savePilotProfile,
   voiceSettings,
 }: {
+  profile: PilotProfile
   saveVoiceSettings: (settings: VoiceSettings) => Promise<void>
+  savePilotProfile: (profile: PilotProfile) => Promise<void>
   voiceSettings: VoiceSettings
 }) {
   const [password, setPassword] = useState('')
@@ -1415,6 +2210,9 @@ function SettingsPanel({
   return (
     <section className="grid gap-5">
       <VoiceSettingsPanel saveVoiceSettings={saveVoiceSettings} voiceSettings={voiceSettings} />
+      <FallbackResponsePanel profile={profile} savePilotProfile={savePilotProfile} />
+      <VoiceWorkerPanel />
+      <AudioCachePanel />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -1497,6 +2295,7 @@ export function AdminPrototype() {
     metrics,
     profile,
     resetPrototype,
+    applyPilotScenario,
     saveAnswer,
     savePilotProfile,
     saveVoiceSettings,
@@ -1615,6 +2414,7 @@ export function AdminPrototype() {
             <PilotSetupPanel
               key={`${profile.tenantName.fr}-${profile.locationName.fr}-${profile.counters.length}`}
               profile={profile}
+              applyPilotScenario={applyPilotScenario}
               savePilotProfile={savePilotProfile}
             />
             <BudgetPolicy />
@@ -1674,7 +2474,12 @@ export function AdminPrototype() {
         ) : null}
 
         {activeTab === 'settings' ? (
-          <SettingsPanel saveVoiceSettings={saveVoiceSettings} voiceSettings={voiceSettings} />
+          <SettingsPanel
+            profile={profile}
+            saveVoiceSettings={saveVoiceSettings}
+            savePilotProfile={savePilotProfile}
+            voiceSettings={voiceSettings}
+          />
         ) : null}
 
         {activeTab === 'import' ? (
