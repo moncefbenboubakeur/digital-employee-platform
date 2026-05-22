@@ -555,16 +555,18 @@ function FaceOrb({
 }
 
 /**
- * Tiny "Earth" badge. Spins slowly in the kiosk header whenever the
- * tenant has internet fallback enabled (profile.useInternetFallback) so
- * visitors can see at a glance that the avatar can reach beyond its
- * trained catalog. Speeds up + glows cyan while a search is actually
- * in flight (active prop), giving the 20-25s wait a visual heartbeat
- * to match the "Searching the internet…" caption.
+ * Tiny "Earth" badge. Shown in the kiosk header whenever the tenant has
+ * internet fallback enabled (profile.useInternetFallback) so visitors
+ * can see at a glance that the avatar can reach beyond its trained
+ * catalog. The continent blobs orbit inside a static sphere outline —
+ * speeds up + glows cyan while a search is actually in flight (active
+ * prop), giving the 20-25s wait a visual heartbeat to match the
+ * "Searching the internet…" caption.
  *
- * Implementation: SVG inside a perspective container; the whole SVG
- * rotates around its Y axis via rotateY, giving a real 3D-globe spin
- * (compresses to an ellipse on the edges, expands when facing camera).
+ * Implementation: plain 2D rotation on the continent group via SVG
+ * `transform` keyframes. Earlier version used rotateY + preserve-3d
+ * which crashed Safari's WebKit renderer on the kiosk page. The 2D
+ * orbit reads just as clearly as "Earth rotating" at icon size.
  */
 function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
   return (
@@ -576,14 +578,9 @@ function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
           ? 'text-cyan-300 [filter:drop-shadow(0_0_6px_rgba(34,211,238,0.7))]'
           : 'text-white/50'
       }`}
-      style={{ perspective: '120px' }}
     >
-      <svg
-        viewBox="0 0 24 24"
-        className={active ? 'globe-spin-fast' : 'globe-spin'}
-        style={{ transformStyle: 'preserve-3d' }}
-      >
-        {/* Sphere outline */}
+      <svg viewBox="0 0 24 24" className="size-full">
+        {/* Static sphere skeleton */}
         <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.2" />
         {/* Equator */}
         <ellipse cx="12" cy="12" rx="10" ry="3.2" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.55" />
@@ -591,24 +588,26 @@ function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
         <ellipse cx="12" cy="12" rx="3.2" ry="10" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.55" />
         {/* Polar axis hint */}
         <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
-        {/* Continent blobs — purely decorative; they ride along the
-            rotateY rotation so they appear to circle the globe. */}
-        <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.55" />
-        <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.55" />
-        <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.55" />
+        {/* Continent blobs orbit the sphere centre — communicates motion
+            without WebKit's SVG-3D-transform bug. */}
+        <g className={active ? 'globe-orbit-fast' : 'globe-orbit'}>
+          <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
+          <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
+          <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
+        </g>
       </svg>
       <style jsx>{`
-        :global(.globe-spin) {
-          animation: globe-spin 12s linear infinite;
-          transform-origin: center;
+        :global(.globe-orbit) {
+          animation: globe-orbit 12s linear infinite;
+          transform-origin: 12px 12px;
         }
-        :global(.globe-spin-fast) {
-          animation: globe-spin 4s linear infinite;
-          transform-origin: center;
+        :global(.globe-orbit-fast) {
+          animation: globe-orbit 4s linear infinite;
+          transform-origin: 12px 12px;
         }
-        @keyframes globe-spin {
-          from { transform: rotateY(0deg); }
-          to   { transform: rotateY(360deg); }
+        @keyframes globe-orbit {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
       `}</style>
     </span>
