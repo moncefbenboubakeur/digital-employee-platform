@@ -144,6 +144,14 @@ function FaceBloom({ state, accent }: FaceFeatureProps) {
   const isFallback = state === 'fallback'
   const pupilColor = '#0f172a'
 
+  // Eye state: thinking → pupils gaze up-and-around (classic "hmm").
+  // Speaking/listening → alert dilate. Idle → relaxed blink.
+  const eyeClass = isThinking
+    ? 'face-eyes-thinking'
+    : isListening || isSpeaking
+    ? 'face-eyes-alert'
+    : 'face-eyes-blink'
+
   return (
     <>
       {/* Rosy cheek hints */}
@@ -155,7 +163,7 @@ function FaceBloom({ state, accent }: FaceFeatureProps) {
       <circle cx="260" cy="185" r="26" fill="#f8fafc" />
 
       {/* Dark pupils with cute white highlight */}
-      <g className={isListening || isSpeaking ? 'face-eyes-alert' : 'face-eyes-blink'}>
+      <g className={eyeClass}>
         <circle cx="140" cy="188" r="12" fill={pupilColor} />
         <circle cx="260" cy="188" r="12" fill={pupilColor} />
         <circle cx="135" cy="182" r="4" fill="#ffffff" />
@@ -177,8 +185,16 @@ function FaceBloom({ state, accent }: FaceFeatureProps) {
           className="face-bloom-mouth"
         />
       ) : isThinking ? (
-        // tiny "o" — friendly thinking
-        <ellipse cx="200" cy="265" rx="9" ry="11" fill="none" stroke={pupilColor} strokeWidth="3" />
+        // Gentle closed smile — relaxed concentration. The "thinking" cue is
+        // carried by the gaze + thought-bubble dots above the head, not the
+        // mouth.
+        <path
+          d="M 175 262 Q 200 270 225 262"
+          fill="none"
+          stroke={pupilColor}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+        />
       ) : isListening ? (
         // Slight open smile
         <path
@@ -199,6 +215,16 @@ function FaceBloom({ state, accent }: FaceFeatureProps) {
           strokeLinecap="round"
         />
       )}
+
+      {/* Thought-bubble dots — only while thinking. Three dots fade in
+          sequence above the head, the universal "I'm processing" cue. */}
+      {isThinking ? (
+        <g>
+          <circle cx="178" cy="115" r="5" fill={accent} className="face-think-dot face-think-dot-1" />
+          <circle cx="200" cy="105" r="6" fill={accent} className="face-think-dot face-think-dot-2" />
+          <circle cx="225" cy="115" r="5" fill={accent} className="face-think-dot face-think-dot-3" />
+        </g>
+      ) : null}
     </>
   )
 }
@@ -492,6 +518,36 @@ function FaceOrb({
         @keyframes pulse-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        /* Thinking gaze — eyes drift up-and-around like the avatar is
+           actively contemplating. Slow, gentle, never crosses center for
+           more than a beat. */
+        :global(.face-eyes-thinking) {
+          animation: face-eyes-thinking 2.4s ease-in-out infinite;
+          transform-origin: center;
+          transform-box: fill-box;
+        }
+        @keyframes face-eyes-thinking {
+          0%   { transform: translate(-3px, -4px); }
+          25%  { transform: translate(3px, -5px); }
+          50%  { transform: translate(4px, -2px); }
+          75%  { transform: translate(-2px, -5px); }
+          100% { transform: translate(-3px, -4px); }
+        }
+
+        /* Thought-bubble dots — three dots above the head fading in
+           sequence. Total cycle 1.4s; each dot is offset by ~0.18s so the
+           sequence reads "dot · dot · dot" like a typing indicator. */
+        :global(.face-think-dot) {
+          animation: face-think-dot 1.4s ease-in-out infinite;
+        }
+        :global(.face-think-dot-1) { animation-delay: 0s; }
+        :global(.face-think-dot-2) { animation-delay: 0.18s; }
+        :global(.face-think-dot-3) { animation-delay: 0.36s; }
+        @keyframes face-think-dot {
+          0%, 60%, 100% { opacity: 0.18; transform: translateY(2px); }
+          30%           { opacity: 1;    transform: translateY(-2px); }
         }
       `}</style>
     </div>
