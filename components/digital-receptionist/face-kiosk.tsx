@@ -557,42 +557,61 @@ function FaceOrb({
 /**
  * "Earth" badge in the kiosk header. Shown only when the tenant has
  * internet fallback enabled (profile.useInternetFallback). Static icon
- * — colour communicates state, not motion:
+ * — colour communicates state:
  *
  *   active=false → gray (slate-400)  — capability available, idle
  *   active=true  → blue (sky-400 + glow) — web search in flight
  *
- * Earlier attempts used animation (rotateY+3D, CSS keyframes, SMIL
- * <animateTransform>) but Safari kept either crashing or silently
- * dropping the rotation. A static icon with a clear colour change
- * conveys the same information ("we're searching the internet right
- * now") and works reliably in every browser.
+ * Render strategy: inline SVG for Chrome/Firefox/Edge (animated colour
+ * transition), <img src="/globe-{gray,blue}.png"> for Safari only.
+ * Safari refused to render this specific inline SVG markup
+ * reliably — every variation tried (CSS animations, SMIL, static) was
+ * invisible or crashed the renderer. The PNG path uses a completely
+ * different WebKit code path and just works. Regenerate the PNGs with
+ * `node scripts/generate-globe-png.mjs` after editing the SVG shapes.
  */
 function GlobeBadge({ active, title }: { active: boolean; title: string }) {
+  // SSR-safe Safari detection: stay false during hydration, flip
+  // client-side once navigator is available. Matches Safari on macOS
+  // and iOS, excludes Chrome/Edge/Opera (which all carry "Safari" in
+  // their UA string but are actually Chromium).
+  const [isSafari, setIsSafari] = useState(false)
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return
+    const ua = navigator.userAgent
+    setIsSafari(/^((?!chrome|android|chromium|crios|fxios|edg).)*safari/i.test(ua))
+  }, [])
+
+  const colorClass = active
+    ? 'text-sky-400 [filter:drop-shadow(0_0_6px_rgba(56,189,248,0.7))]'
+    : 'text-slate-400'
+
   return (
     <span
       title={title}
       aria-label={title}
-      className={`inline-flex size-9 items-center justify-center transition-colors duration-300 ${
-        active
-          ? 'text-sky-400 [filter:drop-shadow(0_0_6px_rgba(56,189,248,0.7))]'
-          : 'text-slate-400'
-      }`}
+      className={`inline-flex size-9 items-center justify-center transition-[filter] duration-300 ${colorClass}`}
     >
-      <svg viewBox="0 0 24 24" className="size-full">
-        {/* Sphere outline */}
-        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.4" />
-        {/* Equator */}
-        <ellipse cx="12" cy="12" rx="10" ry="3.4" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-        {/* Meridian (vertical narrow ellipse) */}
-        <ellipse cx="12" cy="12" rx="3.4" ry="10" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-        {/* Polar axis (faint) */}
-        <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.6" opacity="0.35" />
-        {/* Continent blobs — decorative, no rotation */}
-        <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
-        <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
-        <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
-      </svg>
+      {isSafari ? (
+        <img
+          src={active ? '/globe-blue.png' : '/globe-gray.png'}
+          alt=""
+          width={36}
+          height={36}
+          className="size-full transition-opacity duration-300"
+          draggable={false}
+        />
+      ) : (
+        <svg viewBox="0 0 24 24" className="size-full">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          <ellipse cx="12" cy="12" rx="10" ry="3.4" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+          <ellipse cx="12" cy="12" rx="3.4" ry="10" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+          <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.6" opacity="0.35" />
+          <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
+          <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
+          <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
+        </svg>
+      )}
     </span>
   )
 }
