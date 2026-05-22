@@ -521,6 +521,14 @@ export function FaceKiosk() {
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const sttFinalRef = useRef('')
+  // Mirrors the displayed transcript (final + interim) so onend can submit
+  // even when the STT engine never marks anything isFinal — common with
+  // Chrome's webkitSpeechRecognition for Arabic locales (ar-DZ).
+  const sttInterimRef = useRef('')
+  // Silence-timeout: webkitSpeechRecognition does not reliably fire its own
+  // end-of-speech for non-English locales (especially Arabic), so we run our
+  // own ~1.8s silence detector. Reset on every interim result.
+  const sttSilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioAbortRef = useRef<AbortController | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
@@ -861,13 +869,21 @@ export function FaceKiosk() {
   })
 
   // --- STT (tap-to-talk; auto-stops on silence) ----------------------------
+  const clearSilenceTimer = useCallback(() => {
+    if (sttSilenceTimerRef.current !== null) {
+      clearTimeout(sttSilenceTimerRef.current)
+      sttSilenceTimerRef.current = null
+    }
+  }, [])
+
   const stopListening = useCallback(() => {
+    clearSilenceTimer()
     try {
       recognitionRef.current?.stop()
     } catch {
       // already stopped
     }
-  }, [])
+  }, [clearSilenceTimer])
 
   const startListening = useCallback(() => {
     const Ctor = getSpeechRecognitionCtor()
@@ -883,6 +899,8 @@ export function FaceKiosk() {
 
     stopSpeaking()
     sttFinalRef.current = ''
+    sttInterimRef.current = ''
+    clearSilenceTimer()
     setTranscript('')
     setShowHint(false)
 
@@ -903,17 +921,36 @@ export function FaceKiosk() {
         }
       }
       sttFinalRef.current = finalText
-      setTranscript((finalText + interimText).trim())
+      const combined = (finalText + interimText).trim()
+      sttInterimRef.current = combined
+      setTranscript(combined)
+      // Speech detected → reset the silence timer. If no further results
+      // arrive within 1.8s, force-stop. Catches the Arabic case where the
+      // engine never declares end-of-speech on its own.
+      clearSilenceTimer()
+      if (combined) {
+        sttSilenceTimerRef.current = setTimeout(() => {
+          try {
+            recognitionRef.current?.stop()
+          } catch {
+            // already stopped
+          }
+        }, 1800)
+      }
     }
 
     recognition.onerror = () => {
+      clearSilenceTimer()
       stopMicAnalyser()
       setState('idle')
     }
 
     recognition.onend = () => {
+      clearSilenceTimer()
       stopMicAnalyser()
-      const finalText = sttFinalRef.current.trim()
+      // Prefer isFinal text, but fall back to whatever was last shown — for
+      // Arabic on Chrome that's the only text we ever get.
+      const finalText = sttFinalRef.current.trim() || sttInterimRef.current.trim()
       if (finalText) {
         void submitQuestionRef.current(finalText)
       } else {

@@ -554,6 +554,12 @@ export function KioskPrototype() {
   const idleResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const sttFinalRef = useRef('')
+  // Mirrors displayed transcript (final + interim) — Chrome's webkitSpeech
+  // for ar-DZ never emits isFinal, so we fall back to interim on stop.
+  const sttInterimRef = useRef('')
+  // 1.8s silence detector to force-stop when the engine doesn't end on its
+  // own (Arabic locales mostly).
+  const sttSilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const submitQuestionRef = useRef<(value: string) => void>(() => {})
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
@@ -983,7 +989,15 @@ export function KioskPrototype() {
     }
   }, [])
 
+  const clearSilenceTimer = useCallback(() => {
+    if (sttSilenceTimerRef.current !== null) {
+      clearTimeout(sttSilenceTimerRef.current)
+      sttSilenceTimerRef.current = null
+    }
+  }, [])
+
   const stopListening = useCallback(() => {
+    clearSilenceTimer()
     if (!recognitionRef.current) {
       return
     }
@@ -992,7 +1006,7 @@ export function KioskPrototype() {
     } catch {
       // ignore — already stopped
     }
-  }, [])
+  }, [clearSilenceTimer])
 
   const startListening = useCallback(() => {
     const Ctor = getSpeechRecognitionCtor()
@@ -1011,6 +1025,8 @@ export function KioskPrototype() {
     }
 
     sttFinalRef.current = ''
+    sttInterimRef.current = ''
+    clearSilenceTimer()
     const recognition = new Ctor()
     recognition.lang = speechLangForLanguage(language)
     recognition.interimResults = true
@@ -1028,16 +1044,35 @@ export function KioskPrototype() {
         }
       }
       sttFinalRef.current = finalText
-      setQuestion((finalText + interimText).trim())
+      const combined = (finalText + interimText).trim()
+      sttInterimRef.current = combined
+      setQuestion(combined)
+      // Reset silence timer on every result. After 1.8s of no further
+      // results, force-stop. Needed for Arabic — Chrome's STT engine
+      // doesn't reliably declare end-of-speech for ar-DZ.
+      clearSilenceTimer()
+      if (combined) {
+        sttSilenceTimerRef.current = setTimeout(() => {
+          try {
+            recognitionRef.current?.stop()
+          } catch {
+            // already stopped
+          }
+        }, 1800)
+      }
     }
 
     recognition.onerror = () => {
+      clearSilenceTimer()
       setIsListening(false)
     }
 
     recognition.onend = () => {
+      clearSilenceTimer()
       setIsListening(false)
-      const finalText = sttFinalRef.current.trim()
+      // Prefer isFinal text; fall back to interim — for Arabic that's all
+      // we ever get from Chrome's STT.
+      const finalText = sttFinalRef.current.trim() || sttInterimRef.current.trim()
       if (finalText) {
         submitQuestionRef.current(finalText)
       }
