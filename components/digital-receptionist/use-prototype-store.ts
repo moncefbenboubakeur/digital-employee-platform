@@ -350,12 +350,67 @@ export function usePrototypeStore(options: StoreOptions = {}) {
         if (signal?.aborted) throw err
       }
 
-      // Both matchers missed. Before falling back, optionally try the
-      // internet route — gated per-tenant via profile.useInternetFallback
-      // AND globally by the DR_LLM_INTERNET env flag on the server. The
-      // server route returns enabled:false if either is off, so the
-      // network call is cheap when the feature is unused.
+      // Both matchers missed. Two-stage internet fallback:
+      //   1. Fast knowledge-only pass (~3-6s) — claude-cli with no web tools.
+      //      If the model answers from training with high confidence, we
+      //      return immediately without paying the web-search tax.
+      //   2. Web-search escalation (~20-25s) — only runs when stage 1's
+      //      confidence comes back low (time-sensitive question, local
+      //      fact, anything the model isn't sure about).
+      // Both stages are gated by profile.useInternetFallback AND the
+      // server-side DR_LLM_INTERNET env flag; the routes return
+      // enabled:false when either is off so the fetches are cheap.
+      type WebAnswer = {
+        text: string
+        confidence: 'high' | 'medium' | 'low'
+        sources: string[]
+      }
+      const commitInternet = (answer: WebAnswer): AskInternetResult => {
+        // Log the unknown question for operator review even though we
+        // answered the visitor — useful for catalog growth.
+        setUnknownQuestions((current) => createUnknownQuestion(question, language, current))
+        const event = createQuestionEvent({ question, language, cacheHit: false })
+        setEvents((current) => [event, ...current])
+        void fetch('/api/unknown-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...routingHeaders() },
+          body: JSON.stringify({ question, language }),
+        }).catch(() => setSyncStatus('offline'))
+        return {
+          type: 'internet',
+          text: answer.text,
+          sources: answer.sources,
+          confidence: answer.confidence as 'high' | 'medium',
+        }
+      }
       if (profile.useInternetFallback) {
+        // Stage 1 — knowledge-only fast pass.
+        try {
+          const res = await fetch('/api/llm-knowledge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, language }),
+            signal,
+          })
+          if (res.ok) {
+            const payload = (await res.json()) as {
+              enabled?: boolean
+              answer?: WebAnswer | null
+            }
+            if (
+              payload.enabled &&
+              payload.answer &&
+              payload.answer.confidence === 'high'
+            ) {
+              // Confident answer from training — skip the slow web search.
+              return commitInternet(payload.answer)
+            }
+          }
+        } catch (err) {
+          if (signal?.aborted) throw err
+          // Non-abort errors: silently fall through to stage 2.
+        }
+        // Stage 2 — actual web search. Globe lights up here.
         onPhase?.('searching-internet')
         try {
           const res = await fetch('/api/llm-internet', {
@@ -390,22 +445,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
               payload.answer &&
               (payload.answer.confidence === 'high' || payload.answer.confidence === 'medium')
             ) {
-              // Log the unknown question for operator review even though we
-              // answered the visitor — useful for catalog growth.
-              setUnknownQuestions((current) => createUnknownQuestion(question, language, current))
-              const event = createQuestionEvent({ question, language, cacheHit: false })
-              setEvents((current) => [event, ...current])
-              void fetch('/api/unknown-questions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...routingHeaders() },
-                body: JSON.stringify({ question, language }),
-              }).catch(() => setSyncStatus('offline'))
-              return {
-                type: 'internet',
-                text: payload.answer.text,
-                sources: payload.answer.sources,
-                confidence: payload.answer.confidence,
-              }
+              return commitInternet(payload.answer)
             }
           }
         } catch (err) {
