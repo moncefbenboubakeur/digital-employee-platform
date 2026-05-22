@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { DemoLanguage } from '../demo-data'
+import { getLapiAuthToken, lapiBaseUrl, lapiIsConfigured } from './lapi-client'
 
 export type LlmMatchCandidate = {
   id: string
@@ -14,13 +15,26 @@ export type LlmMatchResult = {
 
 // Gated separately from DR_LLM_DRAFTS so an operator can enable visitor-facing
 // matching without auto-drafting unknowns, or vice-versa.
+//
+// Routes through LAPI (the local llmbridge daemon) — DEP no longer holds an
+// Anthropic API key. The daemon owns provider credentials.
 export function isLlmMatchEnabled(): boolean {
-  return process.env.DR_LLM_MATCH === '1' && Boolean(process.env.ANTHROPIC_API_KEY)
+  return process.env.DR_LLM_MATCH === '1' && lapiIsConfigured()
 }
 
-function modelId(): string {
-  return process.env.DR_LLM_MATCH_MODEL ?? 'claude-haiku-4-5'
-}
+// LAPI project name. Daemon-side config lives at
+// ~/.llmbridge/projects/dep-match.yaml and picks the actual provider+model.
+// Changing the routing (claude-api vs openai-api vs ...) is a one-line YAML
+// edit on the daemon, not a DEP code change.
+const LAPI_PROJECT = 'dep-match'
+
+// `model` is the LAPI backend id, not the underlying provider model. The
+// daemon resolves to whatever Anthropic/OpenAI/Google model the backend is
+// configured with. DR_LLM_MATCH_MODEL is no longer consulted — that decision
+// now lives in the daemon's env (e.g. LLMBRIDGE_CC_MODEL) and the project
+// YAML. Kept the env var name in .env.example as a hint, but it's a no-op
+// in DEP code.
+const LAPI_MODEL_FIELD = 'claude-api'
 
 const matchSchema = {
   type: 'object',
@@ -65,11 +79,19 @@ export async function findLlmMatch({
     .map((entry, index) => `${index + 1}. id="${entry.id}"\n   Q: ${entry.canonical}\n   A: ${entry.answer}`)
     .join('\n')
 
-  const client = new Anthropic()
+  // Anthropic SDK pointed at LAPI. authToken (not apiKey) makes the SDK
+  // send `Authorization: Bearer <token>`, which is what LAPI's auth
+  // middleware expects.
+  const client = new Anthropic({
+    baseURL: lapiBaseUrl(),
+    authToken: getLapiAuthToken(),
+    defaultHeaders: { 'X-Project': LAPI_PROJECT },
+  })
+
   let response
   try {
     response = await client.messages.create({
-      model: modelId(),
+      model: LAPI_MODEL_FIELD,
       max_tokens: 256,
       system: SYSTEM_PROMPT,
       output_config: { format: { type: 'json_schema', schema: matchSchema } },
@@ -89,7 +111,7 @@ export async function findLlmMatch({
       ],
     })
   } catch (error) {
-    console.warn('[llm-match] anthropic call failed', error)
+    console.warn('[llm-match] LAPI call failed', error)
     return null
   }
 

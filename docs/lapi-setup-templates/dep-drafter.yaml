@@ -1,0 +1,12 @@
+# DEP receptionist — background drafter for unknown questions.
+# Runs in the background; latency tolerable up to ~10s. Strong candidate for
+# subscription-backed CLI routing (free at point of use): claude-cli for the
+# Claude Pro/Max quota, codex-cli for ChatGPT Plus/Pro, agy-cli for the
+# free Google Code Assist tier. Switch to claude-api for paid fast access.
+name: dep-drafter
+backend: claude-api
+tools:
+  read: false
+  write: false
+  shell: false
+  web: false

@@ -8,16 +8,23 @@ import type {
   UnknownQuestionDraft,
 } from '../demo-data'
 import { storageDir } from './storage'
+import { getLapiAuthToken, lapiBaseUrl, lapiIsConfigured } from './lapi-client'
 
-// Why an env gate: this feature is opt-in because it (a) talks to a third-party
-// API and (b) costs money. Default behavior of the pilot stays purely local.
+// Why an env gate: this feature is opt-in because background drafting
+// generates content that may surface to visitors after operator review.
+// Default behavior of the pilot stays purely local until an operator flips
+// the flag. Routes through LAPI — DEP no longer holds provider credentials.
 export function isLlmDraftsEnabled(): boolean {
-  return process.env.DR_LLM_DRAFTS === '1' && Boolean(process.env.ANTHROPIC_API_KEY)
+  return process.env.DR_LLM_DRAFTS === '1' && lapiIsConfigured()
 }
 
-function modelId(): string {
-  return process.env.DR_LLM_DRAFTS_MODEL ?? 'claude-haiku-4-5'
-}
+// LAPI project name. Daemon-side YAML at ~/.llmbridge/projects/dep-drafter.yaml
+// selects the actual backend (claude-api, claude-cli, codex-cli, …). The
+// drafter can tolerate higher latency than the matcher, so it's a candidate
+// for subscription-backed CLI routing (free at point of use).
+const LAPI_PROJECT = 'dep-drafter'
+
+const LAPI_MODEL_FIELD = 'claude-api'
 
 function draftDir(): string {
   return path.join(storageDir(), 'unknown-drafts')
@@ -99,12 +106,17 @@ export async function generateAndStoreDraft(
     return null
   }
 
-  const client = new Anthropic()
-  let response
+  // Anthropic SDK pointed at LAPI. authToken sends `Authorization: Bearer`.
+  const client = new Anthropic({
+    baseURL: lapiBaseUrl(),
+    authToken: getLapiAuthToken(),
+    defaultHeaders: { 'X-Project': LAPI_PROJECT },
+  })
 
+  let response
   try {
     response = await client.messages.create({
-      model: modelId(),
+      model: LAPI_MODEL_FIELD,
       max_tokens: 1024,
       system: buildSystemPrompt(input.profile),
       output_config: { format: { type: 'json_schema', schema: draftSchema } },
@@ -123,7 +135,7 @@ export async function generateAndStoreDraft(
       ],
     })
   } catch (error) {
-    console.warn('[llm-drafts] anthropic call failed', input.unknownId, error)
+    console.warn('[llm-drafts] LAPI call failed', input.unknownId, error)
     return null
   }
 
@@ -151,7 +163,10 @@ export async function generateAndStoreDraft(
 
   const draft: UnknownQuestionDraft = {
     answerText: { ar: parsed.ar, fr: parsed.fr, en: parsed.en },
-    source: response.model ?? modelId(),
+    // response.model carries whatever the model field was set to (the LAPI
+    // backend id). To know the actual provider model used we'd need a v2.x
+    // LAPI feature that surfaces it. For now the source is the LAPI project.
+    source: `lapi:${LAPI_PROJECT}`,
     generatedAt: new Date().toISOString(),
   }
 

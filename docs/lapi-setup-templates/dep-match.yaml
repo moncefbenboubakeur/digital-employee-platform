@@ -1,0 +1,12 @@
+# DEP receptionist — LLM matcher.
+# Runs synchronously on every visitor utterance, so latency matters.
+# Backend default: claude-api (paid, fast). Switch to claude-cli / codex-cli /
+# agy-cli for free subscription routing if latency is acceptable (3-9s).
+# v2.3.0 will also offer openai-api and gemini-api as fast paid alternatives.
+name: dep-match
+backend: claude-api
+tools:
+  read: false
+  write: false
+  shell: false
+  web: false
