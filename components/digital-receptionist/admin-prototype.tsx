@@ -48,8 +48,10 @@ import {
 } from '@/lib/digital-receptionist/pilot-config'
 import { pilotScenarios, type PilotScenario } from '@/lib/digital-receptionist/pilot-scenarios'
 import {
+  DRAFTER_DISABLED,
   PINNED,
   TESTABLE_BACKENDS,
+  type DrafterChoice,
   type RoutingChoice,
 } from '@/lib/digital-receptionist/lapi-routing'
 import {
@@ -2182,7 +2184,7 @@ function VoiceSettingsPanel({
 
 function LapiTestRoutingPanel() {
   const [matcher, setMatcher] = useState<RoutingChoice>(PINNED)
-  const [drafter, setDrafter] = useState<RoutingChoice>(PINNED)
+  const [drafter, setDrafter] = useState<DrafterChoice>(PINNED)
 
   useEffect(() => {
     setMatcher(getMatcherBackend())
@@ -2195,7 +2197,7 @@ function LapiTestRoutingPanel() {
     setMatcherBackend(next)
   }
   const onDrafterChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    const next = event.target.value as RoutingChoice
+    const next = event.target.value as DrafterChoice
     setDrafter(next)
     setDrafterBackend(next)
   }
@@ -2265,6 +2267,7 @@ function LapiTestRoutingPanel() {
                 bench-{backend}
               </option>
             ))}
+            <option value={DRAFTER_DISABLED}>None — log question, skip LLM call</option>
           </select>
         </label>
       </div>

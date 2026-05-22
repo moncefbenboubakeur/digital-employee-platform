@@ -10,7 +10,7 @@ import {
 import { startAudioCacheWarmJob } from '@/lib/digital-receptionist/server/voice-audio'
 import {
   DRAFTER_BACKEND_HEADER,
-  parseRoutingChoice,
+  parseDrafterChoice,
   resolveDrafterProject,
 } from '@/lib/digital-receptionist/lapi-routing'
 
@@ -32,7 +32,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing question or language' }, { status: 400 })
   }
 
-  const drafterChoice = parseRoutingChoice(request.headers.get(DRAFTER_BACKEND_HEADER))
+  const drafterChoice = parseDrafterChoice(request.headers.get(DRAFTER_BACKEND_HEADER))
+  // resolveDrafterProject returns null for the 'none' choice — repository
+  // skips draft generation in that case.
   const drafterProject = resolveDrafterProject(drafterChoice)
   return NextResponse.json(
     await recordUnknownQuestion(body.question, body.language, drafterProject),

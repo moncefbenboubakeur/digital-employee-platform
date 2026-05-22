@@ -729,7 +729,8 @@ export async function recordQuestionEvent(input: {
 export async function recordUnknownQuestion(
   question: string,
   language: DemoLanguage,
-  drafterProjectName?: string,
+  /** LAPI project for the draft, or `null` to log only and skip drafting. */
+  drafterProjectName?: string | null,
 ) {
   await ensureDefaultPilot()
   const existing = await prisma.unknownQuestion.findMany({
@@ -762,7 +763,9 @@ export async function recordUnknownQuestion(
     // Only generate a draft for genuinely new candidates — don't re-roll on
     // every repeat occurrence of the same question. Fire-and-forget so the
     // kiosk visitor isn't blocked on the LLM round-trip.
-    if (isLlmDraftsEnabled()) {
+    // `drafterProjectName === null` means "log only" (admin disabled drafting
+    // for this browser session) — skip the LLM call entirely.
+    if (isLlmDraftsEnabled() && drafterProjectName !== null) {
       const location = await prisma.location.findUniqueOrThrow({
         where: { id: defaultLocationId },
         include: { counters: true },

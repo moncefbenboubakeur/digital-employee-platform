@@ -10,26 +10,28 @@ import {
   MATCHER_BACKEND_HEADER,
   DRAFTER_BACKEND_HEADER,
   PINNED,
+  parseDrafterChoice,
   parseRoutingChoice,
+  type DrafterChoice,
   type RoutingChoice,
 } from './lapi-routing'
 
 const MATCHER_KEY = 'dep.lapi.matcherBackend'
 const DRAFTER_KEY = 'dep.lapi.drafterBackend'
 
-function readKey(key: string): RoutingChoice {
-  if (typeof window === 'undefined') return PINNED
+function readRaw(key: string): string | null {
+  if (typeof window === 'undefined') return null
   try {
-    return parseRoutingChoice(window.localStorage.getItem(key))
+    return window.localStorage.getItem(key)
   } catch {
-    return PINNED
+    return null
   }
 }
 
-function writeKey(key: string, value: RoutingChoice): void {
+function writeRaw(key: string, value: string | null): void {
   if (typeof window === 'undefined') return
   try {
-    if (value === PINNED) window.localStorage.removeItem(key)
+    if (value === null || value === PINNED) window.localStorage.removeItem(key)
     else window.localStorage.setItem(key, value)
   } catch {
     // localStorage disabled — silently fall back to default routing.
@@ -37,19 +39,19 @@ function writeKey(key: string, value: RoutingChoice): void {
 }
 
 export function getMatcherBackend(): RoutingChoice {
-  return readKey(MATCHER_KEY)
+  return parseRoutingChoice(readRaw(MATCHER_KEY))
 }
 
 export function setMatcherBackend(value: RoutingChoice): void {
-  writeKey(MATCHER_KEY, value)
+  writeRaw(MATCHER_KEY, value)
 }
 
-export function getDrafterBackend(): RoutingChoice {
-  return readKey(DRAFTER_KEY)
+export function getDrafterBackend(): DrafterChoice {
+  return parseDrafterChoice(readRaw(DRAFTER_KEY))
 }
 
-export function setDrafterBackend(value: RoutingChoice): void {
-  writeKey(DRAFTER_KEY, value)
+export function setDrafterBackend(value: DrafterChoice): void {
+  writeRaw(DRAFTER_KEY, value)
 }
 
 /** Headers to attach to a fetch that should respect the current overrides. */

@@ -17,6 +17,8 @@ export const MATCHER_BACKEND_HEADER = 'x-dep-matcher-backend'
 export const DRAFTER_BACKEND_HEADER = 'x-dep-drafter-backend'
 
 export const PINNED = 'pinned' as const
+/** Drafter-only: log the unknown question but DON'T call the LLM. */
+export const DRAFTER_DISABLED = 'none' as const
 
 // Backends the admin UI offers. Must each have a corresponding
 // `~/.llmbridge/projects/bench-<id>.yaml` registered with the LAPI daemon.
@@ -29,22 +31,28 @@ export const TESTABLE_BACKENDS = [
 export type TestableBackend = (typeof TESTABLE_BACKENDS)[number]
 
 export type RoutingChoice = typeof PINNED | TestableBackend
+export type DrafterChoice = RoutingChoice | typeof DRAFTER_DISABLED
 
 export const MATCHER_PINNED_PROJECT = 'dep-match'
 export const DRAFTER_PINNED_PROJECT = 'dep-drafter'
 
-/** Resolve a routing choice to the LAPI project name. */
+/** Resolve a matcher choice to the LAPI project name. */
 export function resolveMatcherProject(choice: RoutingChoice | undefined): string {
   if (!choice || choice === PINNED) return MATCHER_PINNED_PROJECT
   return `bench-${choice}`
 }
 
-export function resolveDrafterProject(choice: RoutingChoice | undefined): string {
+/**
+ * Resolve a drafter choice to a LAPI project name, or `null` to mean
+ * "log the unknown question but do not generate a draft".
+ */
+export function resolveDrafterProject(choice: DrafterChoice | undefined): string | null {
+  if (choice === DRAFTER_DISABLED) return null
   if (!choice || choice === PINNED) return DRAFTER_PINNED_PROJECT
   return `bench-${choice}`
 }
 
-/** Accept only known values; anything else collapses to pinned. */
+/** Matcher header parser — unknown values collapse to pinned. */
 export function parseRoutingChoice(value: string | null | undefined): RoutingChoice {
   if (!value) return PINNED
   if (value === PINNED) return PINNED
@@ -52,4 +60,10 @@ export function parseRoutingChoice(value: string | null | undefined): RoutingCho
     return value as TestableBackend
   }
   return PINNED
+}
+
+/** Drafter header parser — accepts the same values plus 'none'. */
+export function parseDrafterChoice(value: string | null | undefined): DrafterChoice {
+  if (value === DRAFTER_DISABLED) return DRAFTER_DISABLED
+  return parseRoutingChoice(value)
 }
