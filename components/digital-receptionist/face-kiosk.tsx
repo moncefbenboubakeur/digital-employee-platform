@@ -555,63 +555,43 @@ function FaceOrb({
 }
 
 /**
- * Tiny "Earth" badge. Shown in the kiosk header whenever the tenant has
- * internet fallback enabled (profile.useInternetFallback) so visitors
- * can see at a glance that the avatar can reach beyond its trained
- * catalog. The continent blobs orbit inside a static sphere outline —
- * speeds up + glows cyan while a search is actually in flight (active
- * prop), giving the 20-25s wait a visual heartbeat to match the
- * "Searching the internet…" caption.
+ * "Earth" badge in the kiosk header. Shown only when the tenant has
+ * internet fallback enabled (profile.useInternetFallback). Static icon
+ * — colour communicates state, not motion:
  *
- * Implementation history (each fix solved a browser-specific bug):
- * - v1: rotateY + preserve-3d → crashed WebKit on the kiosk page.
- * - v2: CSS @keyframes rotate + transform-origin: 12px 12px → worked in
- *   Chrome, no visible rotation in Safari.
- * - v3: CSS keyframes + transform-box: fill-box → still no rotation in
- *   Safari (the styled-jsx :global rule may not be reaching the SVG
- *   sub-tree on Safari, or fill-box centroid is too close to identity
- *   for visible motion).
- * - v4 (current): native SVG SMIL <animateTransform>. Built into SVG,
- *   no CSS dependency, identical behaviour everywhere. Explicit pivot
- *   point in `from`/`to` (rotate(0 12 12) → rotate(360 12 12)) so the
- *   continents orbit the sphere centre, not their own bbox centre.
- *   React `key` forces a clean remount when active toggles so the SMIL
- *   animation restarts with the new duration.
+ *   active=false → gray (slate-400)  — capability available, idle
+ *   active=true  → blue (sky-400 + glow) — web search in flight
+ *
+ * Earlier attempts used animation (rotateY+3D, CSS keyframes, SMIL
+ * <animateTransform>) but Safari kept either crashing or silently
+ * dropping the rotation. A static icon with a clear colour change
+ * conveys the same information ("we're searching the internet right
+ * now") and works reliably in every browser.
  */
-function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
-  const dur = active ? '4s' : '12s'
+function GlobeBadge({ active, title }: { active: boolean; title: string }) {
   return (
     <span
       title={title}
       aria-label={title}
-      className={`inline-flex size-9 items-center justify-center transition-colors ${
+      className={`inline-flex size-9 items-center justify-center transition-colors duration-300 ${
         active
-          ? 'text-cyan-300 [filter:drop-shadow(0_0_6px_rgba(34,211,238,0.7))]'
-          : 'text-white/50'
+          ? 'text-sky-400 [filter:drop-shadow(0_0_6px_rgba(56,189,248,0.7))]'
+          : 'text-slate-400'
       }`}
     >
       <svg viewBox="0 0 24 24" className="size-full">
-        {/* Static sphere skeleton */}
-        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <ellipse cx="12" cy="12" rx="10" ry="3.2" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.55" />
-        <ellipse cx="12" cy="12" rx="3.2" ry="10" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.55" />
-        <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
-        {/* key=dur forces a clean SMIL remount when active flips. The
-            third + fourth params of rotate() set the pivot point in SVG
-            coords — sphere centre (12, 12). */}
-        <g key={dur}>
-          <animateTransform
-            attributeName="transform"
-            type="rotate"
-            from="0 12 12"
-            to="360 12 12"
-            dur={dur}
-            repeatCount="indefinite"
-          />
-          <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
-          <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
-          <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
-        </g>
+        {/* Sphere outline */}
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        {/* Equator */}
+        <ellipse cx="12" cy="12" rx="10" ry="3.4" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+        {/* Meridian (vertical narrow ellipse) */}
+        <ellipse cx="12" cy="12" rx="3.4" ry="10" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+        {/* Polar axis (faint) */}
+        <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.6" opacity="0.35" />
+        {/* Continent blobs — decorative, no rotation */}
+        <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
+        <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
+        <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
       </svg>
     </span>
   )
@@ -1235,7 +1215,7 @@ export function FaceKiosk() {
           </div>
           <div className="flex items-center gap-2">
             {profile.useInternetFallback ? (
-              <RotatingGlobe
+              <GlobeBadge
                 active={searchingInternet}
                 title={
                   language === 'ar'
