@@ -135,13 +135,22 @@ export async function findLlmMatch({
   //   1. Embedding pre-filter narrows candidates to the top-K most-similar.
   //      Cheap (~50ms locally, no network).
   //   2. LLM tie-break + confidence label on just those K candidates.
-  //      ~500 input tokens instead of ~7,500 → much faster matcher latency.
+  //      ~500 input tokens instead of ~7,500.
   //
-  // Falls back to LLM-only over the full catalog if local embeddings aren't
-  // configured (EMBEDDINGS_WORKER_COMMAND unset) — operator opts into the
-  // fast path by setting the env var.
+  // ⚠ Disabled by default as of 2026-05-22 — the 10-sample bench
+  // (scripts/lapi-bench.ts) showed the pre-filter is flat-to-slower for
+  // CLI backends because their cold-start overhead (4-8s) dominates the
+  // matcher latency, not input token count. The pre-filter adds ~50ms
+  // overhead per question with no payoff. Set DR_MATCHER_PREFILTER=1 to
+  // re-enable (useful for paid API backends where input tokens cost real
+  // money, or for catalogs in the hundreds of entries). See
+  // scripts/lapi-bench-results.json for the data.
   let workingSet: LlmMatchCandidate[] = candidates
-  if (embeddingsAvailable() && candidates.length > PRE_FILTER_TOP_K) {
+  if (
+    process.env.DR_MATCHER_PREFILTER === '1' &&
+    embeddingsAvailable() &&
+    candidates.length > PRE_FILTER_TOP_K
+  ) {
     try {
       workingSet = await preFilterByEmbedding(question, candidates)
     } catch (error) {
