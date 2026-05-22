@@ -356,6 +356,18 @@ export function usePrototypeStore(options: StoreOptions = {}) {
                 sources: string[]
               } | null
             }
+            // enabled:true + answer:null means the call reached our route but
+            // failed downstream — LAPI daemon unreachable, web tool errored,
+            // or model returned non-JSON. Surface clearly so an operator
+            // looking at the console sees why the kiosk fell back to canned
+            // wording instead of "found on the internet".
+            if (payload.enabled && payload.answer === null) {
+              console.warn(
+                '[kiosk] /api/llm-internet returned enabled:true but answer:null — ' +
+                  'LAPI is likely unreachable, the web tool errored, or the model returned ' +
+                  'non-JSON. Check the LAPI badge in /admin and the dev-server log.',
+              )
+            }
             if (
               payload.enabled &&
               payload.answer &&

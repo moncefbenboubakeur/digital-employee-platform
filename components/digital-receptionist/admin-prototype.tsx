@@ -2248,6 +2248,82 @@ function VoiceSettingsPanel({
   )
 }
 
+type LapiHealth =
+  | { status: 'online'; latencyMs: number; baseUrl: string }
+  | { status: 'offline'; latencyMs?: number; baseUrl: string; error?: string }
+  | { status: 'unconfigured'; baseUrl: null; error?: string }
+  | { status: 'checking' }
+
+function LapiHealthBadge() {
+  const [health, setHealth] = useState<LapiHealth>({ status: 'checking' })
+
+  useEffect(() => {
+    let cancelled = false
+    const probe = async () => {
+      try {
+        const res = await fetch('/api/lapi-health', { cache: 'no-store' })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const payload = (await res.json()) as LapiHealth
+        if (!cancelled) setHealth(payload)
+      } catch (error) {
+        if (!cancelled) {
+          setHealth({
+            status: 'offline',
+            baseUrl: 'unknown',
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+    }
+    void probe()
+    // 15s feels right: fast enough that an operator notices LAPI dropping
+    // within a few seconds of opening admin, slow enough that the polling
+    // cost is negligible (~5ms per probe when healthy).
+    const interval = window.setInterval(() => void probe(), 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  const dotClass =
+    health.status === 'online'
+      ? 'bg-emerald-500'
+      : health.status === 'checking'
+      ? 'bg-slate-400 animate-pulse'
+      : 'bg-rose-500'
+  const pillClass =
+    health.status === 'online'
+      ? 'bg-emerald-100 text-emerald-800'
+      : health.status === 'checking'
+      ? 'bg-slate-100 text-slate-600'
+      : 'bg-rose-100 text-rose-900'
+  const label =
+    health.status === 'online'
+      ? `LAPI online (${health.latencyMs}ms)`
+      : health.status === 'checking'
+      ? 'LAPI checking…'
+      : health.status === 'unconfigured'
+      ? 'LAPI unconfigured'
+      : 'LAPI offline'
+  const title =
+    health.status === 'offline' && health.error
+      ? `${health.error}\nTry: cd /Volumes/My\\ Book\\ Duo-1/Dev/LAPI && node dist/cli.js start`
+      : health.status === 'online' && 'baseUrl' in health
+      ? `Probed ${health.baseUrl}/healthz in ${health.latencyMs}ms`
+      : undefined
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${pillClass}`}
+      title={title}
+    >
+      <span className={`size-2 rounded-full ${dotClass}`} />
+      {label}
+    </span>
+  )
+}
+
 function LapiTestRoutingPanel() {
   const [matcher, setMatcher] = useState<RoutingChoice>(PINNED)
   const [drafter, setDrafter] = useState<DrafterChoice>(PINNED)
@@ -2565,6 +2641,7 @@ export function AdminPrototype() {
                 >
                   {syncStatus === 'ready' ? 'Backend synced' : 'Sync issue'}
                 </span>
+                <LapiHealthBadge />
               </div>
             </div>
             <div className="flex flex-wrap items-start justify-end gap-2">
