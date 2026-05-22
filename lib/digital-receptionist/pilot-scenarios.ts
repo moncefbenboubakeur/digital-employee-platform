@@ -176,6 +176,7 @@ const posteProfile: PilotProfile = {
     en: 'Sunday to Thursday, from 8:00 AM to 5:00 PM.',
   },
   contactNumber: '1530',
+  useInternetFallback: false,
   defaultLanguage: 'fr',
   currentWait: {
     ar: 'الانتظار التقريبي: 18 دقيقة',
@@ -499,6 +500,7 @@ const mallProfile: PilotProfile = {
     en: 'Every day from 10:00 AM to 10:00 PM.',
   },
   contactNumber: '0550 00 00 00',
+  useInternetFallback: false,
   defaultLanguage: 'fr',
   currentWait: {
     ar: 'الاستقبال متاح الآن',

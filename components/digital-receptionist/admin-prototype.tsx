@@ -1484,28 +1484,43 @@ function FallbackResponsePanel({
   savePilotProfile: (profile: PilotProfile) => Promise<void>
 }) {
   const [draft, setDraft] = useState<LocalizedText>(profile.fallbackResponse)
-  const [seenSignature, setSeenSignature] = useState(() => JSON.stringify(profile.fallbackResponse))
+  const [useInternet, setUseInternet] = useState<boolean>(profile.useInternetFallback)
+  const [seenSignature, setSeenSignature] = useState(() =>
+    JSON.stringify({ fb: profile.fallbackResponse, ui: profile.useInternetFallback }),
+  )
   const [status, setStatus] = useState(
     'Spoken in the selected xtts voice when a visitor asks an unknown question. Saving regenerates the cached audio for the new wording.'
   )
   const [saving, setSaving] = useState(false)
-  const savedSignature = JSON.stringify(profile.fallbackResponse)
-  const draftSignature = JSON.stringify(draft)
+  const savedSignature = JSON.stringify({
+    fb: profile.fallbackResponse,
+    ui: profile.useInternetFallback,
+  })
+  const draftSignature = JSON.stringify({ fb: draft, ui: useInternet })
   const dirty = draftSignature !== seenSignature
 
   if (seenSignature !== savedSignature) {
     setSeenSignature(savedSignature)
     if (draftSignature === seenSignature) {
       setDraft(profile.fallbackResponse)
+      setUseInternet(profile.useInternetFallback)
     }
   }
 
   const handleSave = async () => {
     setSaving(true)
-    setStatus('Saving fallback wording and re-warming audio in the background…')
+    setStatus('Saving fallback settings…')
     try {
-      await savePilotProfile({ ...profile, fallbackResponse: draft })
-      setStatus('Fallback wording saved. The kiosk will pick up the new audio on its next poll.')
+      await savePilotProfile({
+        ...profile,
+        fallbackResponse: draft,
+        useInternetFallback: useInternet,
+      })
+      setStatus(
+        useInternet
+          ? 'Saved. Unknown questions will now be answered from the internet (via LAPI dep-internet-fallback). Each call uses real subscription quota.'
+          : 'Saved. Unknown questions will use the canned fallback wording above.',
+      )
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Save failed.')
     } finally {
@@ -1545,6 +1560,34 @@ function FallbackResponsePanel({
           value={draft}
           onChange={setDraft}
         />
+      </div>
+
+      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={useInternet}
+            onChange={(event) => setUseInternet(event.target.checked)}
+            className="mt-1 size-4 cursor-pointer accent-cyan-700"
+          />
+          <div>
+            <span className="text-sm font-semibold text-slate-900">
+              Use internet for unknown questions
+            </span>
+            <p className="mt-1 text-sm text-slate-600">
+              When on, an unknown question is sent to LAPI with web search enabled. If a confident
+              answer is found, the kiosk prefixes it with{' '}
+              <em>&ldquo;I wasn&rsquo;t trained on this, but here&rsquo;s what I found
+              online…&rdquo;</em>{' '}
+              and reads it aloud. Falls back to the wording above when no confident answer comes
+              back.
+            </p>
+            <p className="mt-2 text-xs font-medium text-amber-700">
+              ⚠ Each unknown question becomes a real LLM call (~20-25s, web search included). Uses
+              the underlying subscription&apos;s quota.
+            </p>
+          </div>
+        </label>
       </div>
 
       <p className="mt-3 text-sm font-medium text-slate-600">{status}</p>

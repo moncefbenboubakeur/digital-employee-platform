@@ -51,7 +51,14 @@ type AskUnknownResult = {
   fallbackResponse: LocalizedText
 }
 
-export type AskResult = AskKnownResult | AskUnknownResult
+type AskInternetResult = {
+  type: 'internet'
+  text: string
+  sources: string[]
+  confidence: 'high' | 'medium'
+}
+
+export type AskResult = AskKnownResult | AskUnknownResult | AskInternetResult
 
 export type CachedAudioEntry = {
   answerId: string
@@ -328,6 +335,55 @@ export function usePrototypeStore(options: StoreOptions = {}) {
         // Network or LLM error — fall through to unknown.
       }
 
+      // Both matchers missed. Before falling back, optionally try the
+      // internet route — gated per-tenant via profile.useInternetFallback
+      // AND globally by the DR_LLM_INTERNET env flag on the server. The
+      // server route returns enabled:false if either is off, so the
+      // network call is cheap when the feature is unused.
+      if (profile.useInternetFallback) {
+        try {
+          const res = await fetch('/api/llm-internet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, language }),
+          })
+          if (res.ok) {
+            const payload = (await res.json()) as {
+              enabled?: boolean
+              answer?: {
+                text: string
+                confidence: 'high' | 'medium' | 'low'
+                sources: string[]
+              } | null
+            }
+            if (
+              payload.enabled &&
+              payload.answer &&
+              (payload.answer.confidence === 'high' || payload.answer.confidence === 'medium')
+            ) {
+              // Log the unknown question for operator review even though we
+              // answered the visitor — useful for catalog growth.
+              setUnknownQuestions((current) => createUnknownQuestion(question, language, current))
+              const event = createQuestionEvent({ question, language, cacheHit: false })
+              setEvents((current) => [event, ...current])
+              void fetch('/api/unknown-questions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...routingHeaders() },
+                body: JSON.stringify({ question, language }),
+              }).catch(() => setSyncStatus('offline'))
+              return {
+                type: 'internet',
+                text: payload.answer.text,
+                sources: payload.answer.sources,
+                confidence: payload.answer.confidence,
+              }
+            }
+          }
+        } catch {
+          // Network/LAPI error — fall through to canned fallback.
+        }
+      }
+
       setUnknownQuestions((current) => createUnknownQuestion(question, language, current))
       const event = createQuestionEvent({
         question,
@@ -354,7 +410,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
         fallbackResponse,
       }
     },
-    [actions, answers]
+    [actions, answers, profile.useInternetFallback]
   )
 
   const savePilotProfile = useCallback(

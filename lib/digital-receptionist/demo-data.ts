@@ -38,6 +38,12 @@ export type PilotProfile = {
   currentWait: LocalizedText
   liveStatus: LocalizedText
   fallbackResponse: LocalizedText
+  /**
+   * When true, unknown questions get routed to the LAPI internet-fallback
+   * project (web tools enabled) and the kiosk shows a "found on the
+   * internet" answer instead of the canned fallback wording.
+   */
+  useInternetFallback: boolean
   counters: PilotCounter[]
 }
 
@@ -208,6 +214,7 @@ export const pilotProfile: PilotProfile = {
   },
   contactNumber: '021 00 00 00',
   defaultLanguage: 'fr',
+  useInternetFallback: false,
   currentWait: {
     ar: 'الانتظار التقريبي: 12 دقيقة',
     fr: 'Attente estimée : 12 min',

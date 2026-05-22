@@ -34,11 +34,13 @@ import { usePrototypeStore, type AskResult } from './use-prototype-store'
 import { LiteAvatar, type LiteAvatarState } from './lite-avatar'
 
 type DisplayAnswer = {
-  mode: 'known' | 'unknown' | 'escalation'
+  mode: 'known' | 'unknown' | 'escalation' | 'internet'
   answerId?: string
   fallbackResponse?: Record<DemoLanguage, string>
   question?: string
   action?: DemoAction
+  internetText?: string
+  internetSources?: string[]
 }
 
 type LocalizedDisplayAnswer = DisplayAnswer & {
@@ -142,7 +144,14 @@ function answerFromResult(result: AskResult, language: DemoLanguage, question: s
       action: result.action,
     }
   }
-
+  if (result.type === 'internet') {
+    return {
+      mode: 'internet',
+      question,
+      internetText: result.text,
+      internetSources: result.sources,
+    }
+  }
   return {
     mode: 'unknown',
     fallbackResponse: result.fallbackResponse,
@@ -591,6 +600,20 @@ export function KioskPrototype() {
         ...displayAnswer,
         text: displayAnswer.fallbackResponse[language],
         badge: uiText[language].savedForReview,
+      }
+    }
+
+    if (displayAnswer.mode === 'internet' && displayAnswer.internetText) {
+      const prefix =
+        language === 'ar'
+          ? 'لم أتدرب على هذا، لكن وجدت على الإنترنت: '
+          : language === 'fr'
+          ? "Je n'ai pas été entraînée sur ceci, mais voici ce que j'ai trouvé en ligne : "
+          : "I wasn't trained on this, but here's what I found online: "
+      return {
+        ...displayAnswer,
+        text: `${prefix}${displayAnswer.internetText}`,
+        badge: language === 'ar' ? 'إنترنت' : language === 'fr' ? 'Internet' : 'Internet',
       }
     }
 

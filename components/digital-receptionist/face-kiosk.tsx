@@ -566,7 +566,8 @@ export function FaceKiosk() {
   const [language, setLanguage] = useState<DemoLanguage>(profile.defaultLanguage)
   const [state, setState] = useState<FaceState>('idle')
   const [answerText, setAnswerText] = useState('')
-  const [answerKind, setAnswerKind] = useState<'known' | 'unknown' | 'escalation' | 'greeting'>('greeting')
+  const [answerKind, setAnswerKind] = useState<'known' | 'unknown' | 'escalation' | 'greeting' | 'internet'>('greeting')
+  const [internetSources, setInternetSources] = useState<string[]>([])
   const [transcript, setTranscript] = useState('')
   const [sttSupported, setSttSupported] = useState(false)
   const [showHint, setShowHint] = useState(true)
@@ -908,11 +909,21 @@ export function FaceKiosk() {
         const localized = result.answer.answerText[language]
         setAnswerText(localized)
         setAnswerKind('known')
+        setInternetSources([])
         void playAnswerAudio(result.answer.id, localized)
+      } else if (result.type === 'internet') {
+        setAnswerText(result.text)
+        setAnswerKind('internet')
+        setInternetSources(result.sources)
+        // Speak just the answer text — sources are visual only. Use the
+        // fallback "answer id" so we don't pollute the per-answer audio
+        // cache with one-off web answers.
+        void playAnswerAudio(FALLBACK_ANSWER_ID, result.text)
       } else {
         const localized = result.fallbackResponse[language]
         setAnswerText(localized)
         setAnswerKind('unknown')
+        setInternetSources([])
         void playAnswerAudio(FALLBACK_ANSWER_ID, localized)
       }
     },
@@ -1172,12 +1183,37 @@ export function FaceKiosk() {
             className={`w-full rounded-2xl border px-6 py-5 backdrop-blur-md ${
               answerKind === 'unknown' || answerKind === 'escalation'
                 ? 'border-amber-300/40 bg-amber-900/20'
+                : answerKind === 'internet'
+                ? 'border-violet-300/40 bg-violet-900/20'
                 : 'border-cyan-300/30 bg-cyan-900/20'
             }`}
           >
+            {answerKind === 'internet' ? (
+              <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-violet-200/90" dir={dir}>
+                {language === 'ar'
+                  ? 'لم أتدرب على هذا السؤال، لكن هذا ما وجدته على الإنترنت'
+                  : language === 'fr'
+                  ? "Je n'ai pas été entraînée sur cette question, mais voici ce que j'ai trouvé en ligne"
+                  : "I wasn't trained on this question, but here's what I found online"}
+              </p>
+            ) : null}
             <p className="text-center text-xl font-medium leading-relaxed md:text-2xl">
               {answerText}
             </p>
+            {answerKind === 'internet' && internetSources.length > 0 ? (
+              <div className="mt-4 border-t border-violet-300/20 pt-3">
+                <p className="mb-1 text-center text-xs font-semibold uppercase tracking-wide text-violet-200/70" dir={dir}>
+                  {language === 'ar' ? 'المصادر' : language === 'fr' ? 'Sources' : 'Sources'}
+                </p>
+                <ul className="space-y-1 text-center text-xs text-violet-200/80">
+                  {internetSources.map((src) => (
+                    <li key={src} className="break-all">
+                      {src}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : !answerText && state !== 'listening' && showHint ? (
           <p

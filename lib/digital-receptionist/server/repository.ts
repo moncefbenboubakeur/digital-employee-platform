@@ -112,6 +112,7 @@ function locationToProfile(location: Location, counters: Counter[]): PilotProfil
     currentWait: parseJson(location.currentWaitJson),
     liveStatus: parseJson(location.liveStatusJson),
     fallbackResponse: parseJson(location.fallbackResponseJson),
+    useInternetFallback: location.useInternetFallback,
     counters: counters
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((counter) => ({
@@ -510,6 +511,7 @@ export async function saveProfile(profile: PilotProfile) {
         currentWaitJson: toJson(normalized.currentWait),
         liveStatusJson: toJson(normalized.liveStatus),
         fallbackResponseJson: toJson(normalized.fallbackResponse),
+        useInternetFallback: normalized.useInternetFallback,
       },
     })
     await tx.counter.deleteMany({ where: { locationId: defaultLocationId } })
@@ -582,6 +584,7 @@ export async function applyPilotScenario(scenarioId: string) {
         currentWaitJson: toJson(profile.currentWait),
         liveStatusJson: toJson(profile.liveStatus),
         fallbackResponseJson: toJson(profile.fallbackResponse),
+        useInternetFallback: profile.useInternetFallback,
       },
     })
     await tx.counter.createMany({
@@ -876,6 +879,7 @@ export async function importSnapshot(snapshot: PilotSnapshot) {
         currentWaitJson: toJson(profile.currentWait),
         liveStatusJson: toJson(profile.liveStatus),
         fallbackResponseJson: toJson(profile.fallbackResponse),
+        useInternetFallback: profile.useInternetFallback,
       },
     })
     await tx.counter.createMany({
