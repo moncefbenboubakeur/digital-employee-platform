@@ -563,12 +563,23 @@ function FaceOrb({
  * prop), giving the 20-25s wait a visual heartbeat to match the
  * "Searching the internet…" caption.
  *
- * Implementation: plain 2D rotation on the continent group via SVG
- * `transform` keyframes. Earlier version used rotateY + preserve-3d
- * which crashed Safari's WebKit renderer on the kiosk page. The 2D
- * orbit reads just as clearly as "Earth rotating" at icon size.
+ * Implementation history (each fix solved a browser-specific bug):
+ * - v1: rotateY + preserve-3d → crashed WebKit on the kiosk page.
+ * - v2: CSS @keyframes rotate + transform-origin: 12px 12px → worked in
+ *   Chrome, no visible rotation in Safari.
+ * - v3: CSS keyframes + transform-box: fill-box → still no rotation in
+ *   Safari (the styled-jsx :global rule may not be reaching the SVG
+ *   sub-tree on Safari, or fill-box centroid is too close to identity
+ *   for visible motion).
+ * - v4 (current): native SVG SMIL <animateTransform>. Built into SVG,
+ *   no CSS dependency, identical behaviour everywhere. Explicit pivot
+ *   point in `from`/`to` (rotate(0 12 12) → rotate(360 12 12)) so the
+ *   continents orbit the sphere centre, not their own bbox centre.
+ *   React `key` forces a clean remount when active toggles so the SMIL
+ *   animation restarts with the new duration.
  */
 function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
+  const dur = active ? '4s' : '12s'
   return (
     <span
       title={title}
@@ -582,43 +593,26 @@ function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
       <svg viewBox="0 0 24 24" className="size-full">
         {/* Static sphere skeleton */}
         <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        {/* Equator */}
         <ellipse cx="12" cy="12" rx="10" ry="3.2" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.55" />
-        {/* Meridian */}
         <ellipse cx="12" cy="12" rx="3.2" ry="10" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.55" />
-        {/* Polar axis hint */}
         <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
-        {/* Continent blobs orbit the sphere centre — communicates motion
-            without WebKit's SVG-3D-transform bug. */}
-        <g className={active ? 'globe-orbit-fast' : 'globe-orbit'}>
+        {/* key=dur forces a clean SMIL remount when active flips. The
+            third + fourth params of rotate() set the pivot point in SVG
+            coords — sphere centre (12, 12). */}
+        <g key={dur}>
+          <animateTransform
+            attributeName="transform"
+            type="rotate"
+            from="0 12 12"
+            to="360 12 12"
+            dur={dur}
+            repeatCount="indefinite"
+          />
           <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
           <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
           <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
         </g>
       </svg>
-      <style jsx>{`
-        /* Safari requires transform-box:fill-box on SVG <g> elements for
-           CSS transform-origin to resolve against the element's own bbox.
-           Chrome accepts pixel-based origins on the viewBox coordinate
-           system, Safari does not. Matches the .face-bloom-mouth pattern
-           already used elsewhere in this file. */
-        :global(.globe-orbit) {
-          animation: globe-orbit 12s linear infinite;
-          transform-origin: center;
-          transform-box: fill-box;
-          will-change: transform;
-        }
-        :global(.globe-orbit-fast) {
-          animation: globe-orbit 4s linear infinite;
-          transform-origin: center;
-          transform-box: fill-box;
-          will-change: transform;
-        }
-        @keyframes globe-orbit {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
     </span>
   )
 }
