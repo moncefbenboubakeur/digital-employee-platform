@@ -1,0 +1,22 @@
+[
+  {"id":"opening-hours", "lang":"fr", "q":"À partir de quelle heure puis-je passer cette semaine ?"},
+  {"id":"opening-hours", "lang":"en", "q":"Until what moment can I stop by this week?"},
+  {"id":"birth-certificate", "lang":"fr", "q":"Quel justificatif prouve que je suis bien né dans cette commune ?"},
+  {"id":"birth-certificate", "lang":"en", "q":"How do I prove I was born in this town?"},
+  {"id":"required-documents", "lang":"fr", "q":"Qu'est-ce qu'il faut apporter avec moi le jour de ma visite ?"},
+  {"id":"required-documents", "lang":"en", "q":"What should I bring along on the day of my visit?"},
+  {"id":"family-record", "lang":"fr", "q":"Comment obtenir le récapitulatif qui liste tous les membres de mon foyer ?"},
+  {"id":"family-record", "lang":"en", "q":"How do I get the sheet that lists everyone in my household?"},
+  {"id":"residence-certificate", "lang":"fr", "q":"Comment prouver que j'habite bien à cette adresse ?"},
+  {"id":"residence-certificate", "lang":"en", "q":"How do I prove that I live at this address?"},
+  {"id":"contact-office", "lang":"fr", "q":"Comment puis-je vous joindre en dehors de ma visite ?"},
+  {"id":"contact-office", "lang":"en", "q":"How can I reach you outside my visit?"},
+  {"id":"information-desk", "lang":"fr", "q":"Dans quelle partie du hall puis-je trouver l'employé qui répond aux visiteurs ?"},
+  {"id":"information-desk", "lang":"en", "q":"In which part of the hall can I find the staff member who handles visitor questions?"},
+  {"id":"incomplete-file", "lang":"fr", "q":"J'ai oublié un justificatif à la maison, est-ce que je dois rentrer ?"},
+  {"id":"incomplete-file", "lang":"en", "q":"I left something needed at home, should I head back?"},
+  {"id":"elderly-help", "lang":"fr", "q":"Ma grand-mère a du mal à marcher, pouvez-vous faire quelque chose pour elle ?"},
+  {"id":"elderly-help", "lang":"en", "q":"My grandmother walks slowly, can someone speed things up for her?"},
+  {"id":"which-counter", "lang":"fr", "q":"Je suis perdu, à qui dois-je m'adresser en premier ?"},
+  {"id":"which-counter", "lang":"en", "q":"I am lost, who should I talk to first?"}
+]
