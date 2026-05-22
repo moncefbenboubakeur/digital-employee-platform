@@ -180,6 +180,8 @@ export function normalizeUnknownQuestions(value: unknown): UnknownQuestion[] {
         : 'new'
     const rawConfidence = stringValue(question.confidence, fallback.confidence)
 
+    const draft = isRecord(question.draft) ? question.draft : undefined
+
     return {
       id: stringValue(question.id, fallback.id),
       question: stringValue(question.question, fallback.question),
@@ -189,6 +191,15 @@ export function normalizeUnknownQuestions(value: unknown): UnknownQuestion[] {
       confidence: rawConfidence === 'medium' ? 'medium' : 'low',
       status,
       createdAt: stringValue(question.createdAt, fallback.createdAt),
+      ...(draft && isRecord(draft.answerText)
+        ? {
+            draft: {
+              answerText: normalizeLocalizedText(draft.answerText, fallbackResponse),
+              source: stringValue(draft.source, 'llm'),
+              generatedAt: stringValue(draft.generatedAt, new Date().toISOString()),
+            },
+          }
+        : {}),
     }
   })
 }

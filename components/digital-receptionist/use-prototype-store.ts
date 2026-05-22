@@ -252,21 +252,20 @@ export function usePrototypeStore(options: StoreOptions = {}) {
   const askQuestion = useCallback(
     async (question: string, language: DemoLanguage): Promise<AskResult> => {
       const publishedAnswers = answers.filter((answer) => answer.published)
-      const result = matchQuestion(question, publishedAnswers)
+      const keywordResult = matchQuestion(question, publishedAnswers)
 
-      if (result.hit) {
+      // Helper to commit a known-answer hit (used for both keyword and LLM matches).
+      const commitKnown = (answer: typeof publishedAnswers[number]): AskResult => {
         setAnswers((current) =>
-          current.map((answer) =>
-            answer.id === result.answer.id
-              ? { ...answer, usageCount: answer.usageCount + 1 }
-              : answer
+          current.map((entry) =>
+            entry.id === answer.id ? { ...entry, usageCount: entry.usageCount + 1 } : entry
           )
         )
         const event = createQuestionEvent({
           question,
           language,
           cacheHit: true,
-          answerId: result.answer.id,
+          answerId: answer.id,
         })
         setEvents((current) => [event, ...current])
 
@@ -277,15 +276,55 @@ export function usePrototypeStore(options: StoreOptions = {}) {
             question,
             language,
             cacheHit: true,
-            answerId: result.answer.id,
+            answerId: answer.id,
           }),
         }).catch(() => setSyncStatus('offline'))
 
         return {
           type: 'known',
-          answer: result.answer,
-          action: actions.find((action) => action.id === result.answer.actionId),
+          answer,
+          action: actions.find((action) => action.id === answer.actionId),
         }
+      }
+
+      if (keywordResult.hit) {
+        return commitKnown(keywordResult.answer)
+      }
+
+      // Keyword matcher missed — try a server-side LLM semantic match before
+      // falling through to "unknown question". The endpoint short-circuits to
+      // null when DR_LLM_MATCH is not enabled, so this is a cheap no-op when
+      // running purely local.
+      try {
+        const candidates = publishedAnswers.map((entry) => ({
+          id: entry.id,
+          canonical: entry.canonicalQuestion[language],
+          answer: entry.answerText[language],
+        }))
+        const response = await fetch('/api/llm-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, language, candidates }),
+        })
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            enabled?: boolean
+            matchedAnswerId?: string | null
+            confidence?: 'high' | 'medium' | 'low' | null
+          }
+          // Only trust high/medium confidence — low means "I'm guessing".
+          if (
+            payload.matchedAnswerId &&
+            (payload.confidence === 'high' || payload.confidence === 'medium')
+          ) {
+            const match = publishedAnswers.find((entry) => entry.id === payload.matchedAnswerId)
+            if (match) {
+              return commitKnown(match)
+            }
+          }
+        }
+      } catch {
+        // Network or LLM error — fall through to unknown.
       }
 
       setUnknownQuestions((current) => createUnknownQuestion(question, language, current))

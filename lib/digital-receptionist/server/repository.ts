@@ -38,6 +38,7 @@ import {
 import { listCachedAnswerAudio, type CachedAnswerAudioRef } from './answer-audio-manifest'
 import { setAdminPassword } from './auth'
 import { defaultLocationId, prisma } from './db'
+import { generateAndStoreDraft, isLlmDraftsEnabled, loadDraft } from './llm-drafts'
 
 export type KioskDeviceStatus = 'online' | 'stale' | 'offline'
 
@@ -387,7 +388,16 @@ export async function getAdminPayload(): Promise<AdminPayload> {
     listCachedAnswerAudio(),
   ])
   const answers = location.answers.map(answerToUi)
-  const unknownQuestions = location.unknownQuestions.map(unknownToUi)
+  const baseUnknown = location.unknownQuestions.map(unknownToUi)
+  const unknownQuestions = await Promise.all(
+    baseUnknown.map(async (candidate) => {
+      if (candidate.status !== 'new') {
+        return candidate
+      }
+      const draft = await loadDraft(candidate.id)
+      return draft ? { ...candidate, draft } : candidate
+    })
+  )
   const events = location.questionEvents.map(eventToUi)
 
   return {
@@ -744,6 +754,23 @@ export async function recordUnknownQuestion(question: string, language: DemoLang
         createdAt: new Date(nextQuestion.createdAt),
       },
     })
+
+    // Only generate a draft for genuinely new candidates — don't re-roll on
+    // every repeat occurrence of the same question. Fire-and-forget so the
+    // kiosk visitor isn't blocked on the LLM round-trip.
+    if (isLlmDraftsEnabled()) {
+      const location = await prisma.location.findUniqueOrThrow({
+        where: { id: defaultLocationId },
+        include: { counters: true },
+      })
+      const profile = locationToProfile(location, location.counters)
+      void generateAndStoreDraft({
+        unknownId: nextQuestion.id,
+        question: nextQuestion.question,
+        language: nextQuestion.language,
+        profile,
+      })
+    }
   }
 
   return getAdminPayload()

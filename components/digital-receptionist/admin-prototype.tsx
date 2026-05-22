@@ -814,10 +814,15 @@ function UnknownQuestionItem({
   approveUnknown: (candidateId: string, answerText: LocalizedText, actionId?: string) => Promise<void>
   markUnknown: (candidateId: string, status: 'rejected' | 'out_of_scope') => Promise<void>
 }) {
-  const [draft, setDraft] = useState<LocalizedText>(() => ({
-    ...candidate.fallbackResponse,
-    [candidate.language]: candidate.fallbackResponse[candidate.language],
-  }))
+  const [draft, setDraft] = useState<LocalizedText>(() => {
+    if (candidate.draft) {
+      return { ...candidate.draft.answerText }
+    }
+    return {
+      ...candidate.fallbackResponse,
+      [candidate.language]: candidate.fallbackResponse[candidate.language],
+    }
+  })
   const [actionId, setActionId] = useState('staff-help')
 
   const handleApprove = () => {
@@ -838,6 +843,14 @@ function UnknownQuestionItem({
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
               x{candidate.count}
             </span>
+            {candidate.draft ? (
+              <span
+                className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-900"
+                title={`Drafted by ${candidate.draft.source} — review before approving`}
+              >
+                AI draft ready
+              </span>
+            ) : null}
           </div>
           <p className="mt-3 text-base font-semibold text-slate-950">{candidate.question}</p>
         </div>

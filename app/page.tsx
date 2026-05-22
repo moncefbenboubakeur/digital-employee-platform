@@ -6,6 +6,7 @@ import {
   Database,
   MonitorSmartphone,
   ShieldCheck,
+  Sparkles,
   Volume2,
   WalletCards,
 } from 'lucide-react'
@@ -17,6 +18,12 @@ const links = [
     title: 'Visitor kiosk',
     description: 'Multilingual visitor assistant with quick questions, typed input, voice, and action cards.',
     icon: MonitorSmartphone,
+  },
+  {
+    href: '/kiosk/face',
+    title: 'Face mode (experimental)',
+    description: 'Voice-first, full-screen AI face. Tap to talk — no typing, no chrome. Demo-friendly.',
+    icon: Sparkles,
   },
   {
     href: '/admin',
@@ -81,7 +88,7 @@ export default function DigitalReceptionistDemoPage() {
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2">
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {links.map((item) => {
             const Icon = item.icon
 

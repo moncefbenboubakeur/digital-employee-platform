@@ -7,14 +7,16 @@ import {
   Building2,
   CircleHelp,
   ClipboardList,
-  Languages,
+  FileText,
   MapPin,
   MessageSquareText,
+  Mic,
   QrCode,
   RotateCcw,
   Send,
   ShieldCheck,
   Square,
+  Users,
   UserRoundCheck,
   Volume2,
   VolumeX,
@@ -81,18 +83,51 @@ function kioskDebugWarn(message: string, data?: Record<string, unknown>) {
   console.warn(`[KIOSK] ${message}`, data ?? {})
 }
 
-const quickQuestionIds = [
-  'who-are-you',
-  'services',
-  'document-renewal-counter',
-  'required-documents',
-  'opening-hours',
-  'qr-code',
-  'languages',
-  'which-counter',
-]
+const QUICK_GRID_SIZE = 8
 
-const quickIcons = [CircleHelp, Building2, MapPin, ClipboardList, ShieldCheck, QrCode, Languages, MessageSquareText]
+// Icons fill the quick-grid slots in order. They're position-dependent, not
+// answer-dependent, so the same icon set works for every scenario.
+const quickIcons = [Building2, MapPin, ClipboardList, FileText, Users, ShieldCheck, QrCode, MessageSquareText]
+
+const IDLE_RESET_MS = 90_000
+
+// Minimal Web Speech API shape — TS lib.dom doesn't ship SpeechRecognition
+// because it's not in the standardised typings yet (it lives as the prefixed
+// webkitSpeechRecognition in Chrome/Safari).
+type SpeechRecognitionAlt = { transcript: string; confidence: number }
+type SpeechRecognitionResultLike = {
+  isFinal: boolean
+  0: SpeechRecognitionAlt
+  length: number
+}
+type SpeechRecognitionEventLike = {
+  resultIndex: number
+  results: { length: number } & Record<number, SpeechRecognitionResultLike>
+}
+type SpeechRecognitionInstance = {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  maxAlternatives?: number
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
+
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor
+    webkitSpeechRecognition?: SpeechRecognitionCtor
+  }
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition
+}
 
 function getDirection(language: DemoLanguage) {
   return language === 'ar' ? 'rtl' : 'ltr'
@@ -127,7 +162,7 @@ function LanguageSwitcher({
       {demoLanguages.map((item) => (
         <button
           key={item.id}
-          className={`min-h-11 rounded-lg border px-4 text-sm font-semibold transition ${
+          className={`min-h-12 rounded-lg border px-5 text-base font-semibold transition ${
             item.id === language
               ? 'border-cyan-700 bg-cyan-700 text-white shadow-sm'
               : 'border-slate-200 bg-white text-slate-700 hover:border-cyan-300'
@@ -139,6 +174,60 @@ function LanguageSwitcher({
         </button>
       ))}
     </div>
+  )
+}
+
+function WelcomeScreen({
+  profile,
+  onStart,
+}: {
+  profile: PilotProfile
+  onStart: (language: DemoLanguage) => void
+}) {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 px-6 py-10 text-white">
+      <div className="flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-10 text-center">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200">
+            {profile.tenantName.fr}
+          </p>
+          <h1 className="text-4xl font-semibold leading-tight md:text-6xl">
+            {profile.locationName.fr}
+          </h1>
+          <p className="mt-2 text-lg text-cyan-100 md:text-2xl" dir="rtl">
+            {profile.locationName.ar}
+          </p>
+        </div>
+
+        <div className="grid w-full gap-4 md:grid-cols-3">
+          {demoLanguages.map((item) => (
+            <button
+              key={item.id}
+              className="group flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-white/20 bg-white/10 px-6 py-8 text-2xl font-semibold backdrop-blur transition hover:scale-[1.02] hover:border-white hover:bg-white hover:text-cyan-900 focus:outline-none focus:ring-4 focus:ring-cyan-300 md:text-3xl"
+              type="button"
+              onClick={() => onStart(item.id)}
+            >
+              <span dir={item.id === 'ar' ? 'rtl' : 'ltr'} className="text-4xl md:text-5xl">
+                {item.label}
+              </span>
+              <span className="text-base font-medium text-cyan-100 group-hover:text-cyan-700 md:text-lg">
+                {uiText[item.id].touchToStart}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-1 text-base text-cyan-100 md:text-lg">
+          <p>{uiText.fr.chooseLanguage}</p>
+          <p dir="rtl">{uiText.ar.chooseLanguage}</p>
+          <p>{uiText.en.chooseLanguage}</p>
+        </div>
+      </div>
+
+      <footer className="mt-10 text-xs text-cyan-200/70">
+        {profile.contactNumber} · {profile.openingHours.fr}
+      </footer>
+    </main>
   )
 }
 
@@ -254,10 +343,14 @@ function QuickQuestionGrid({
   language: DemoLanguage
   onAsk: (question: string) => void
 }) {
-  const quickAnswers = quickQuestionIds
-    .map((id) => answers.find((answer) => answer.id === id))
-    .filter((answer) => answer?.published)
-    .filter((answer): answer is DemoAnswer => Boolean(answer))
+  // Pick the most-asked published answers per scenario so the quick grid
+  // adapts when a different pilot (APC, Algérie Poste, Mall, …) is applied.
+  // Sort is stable on the answers array order to keep icon positions
+  // predictable when several answers share a usageCount.
+  const quickAnswers = [...answers]
+    .filter((answer) => answer.published)
+    .sort((a, b) => b.usageCount - a.usageCount)
+    .slice(0, QUICK_GRID_SIZE)
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -274,13 +367,13 @@ function QuickQuestionGrid({
           return (
             <button
               key={answer.id}
-              className="min-h-24 rounded-lg border border-slate-200 bg-slate-50 p-4 text-left text-base font-semibold text-slate-900 transition hover:border-cyan-300 hover:bg-cyan-50 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+              className="flex min-h-32 flex-col rounded-xl border border-slate-200 bg-slate-50 p-5 text-left text-lg font-semibold leading-tight text-slate-900 transition hover:-translate-y-0.5 hover:border-cyan-400 hover:bg-cyan-50 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-cyan-100 md:min-h-40 md:text-xl"
               dir={getDirection(language)}
               type="button"
               onClick={() => onAsk(answer.canonicalQuestion[language])}
             >
-              <Icon className="mb-3 size-5 text-cyan-700" />
-              {answer.canonicalQuestion[language]}
+              <Icon className="mb-3 size-7 text-cyan-700" />
+              <span className="flex-1">{answer.canonicalQuestion[language]}</span>
             </button>
           )
         })}
@@ -291,6 +384,7 @@ function QuickQuestionGrid({
 
 function ActionPanel({ action, language }: { action?: DemoAction; language: DemoLanguage }) {
   const direction = getDirection(language)
+  const text = uiText[language]
 
   if (!action) {
     return (
@@ -298,6 +392,40 @@ function ActionPanel({ action, language }: { action?: DemoAction; language: Demo
         <div className="flex items-center gap-3">
           <ShieldCheck className="size-5 text-emerald-700" />
           <p className="text-base font-medium">{uiText[language].greeting}</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (action.type === 'direction') {
+    // Hero "Go to → counter X" card — designed to be the dominant visual when
+    // the answer is a routing decision (the most common APC ask).
+    return (
+      <section
+        className="overflow-hidden rounded-2xl border-2 border-cyan-700 bg-gradient-to-br from-cyan-700 to-cyan-900 p-7 text-white shadow-lg md:p-9"
+        dir={direction}
+      >
+        <div className="flex items-center gap-5 md:gap-7">
+          <div className="flex shrink-0 items-center justify-center rounded-2xl bg-white/15 p-5 backdrop-blur md:p-6">
+            <MapPin className="size-16 md:size-20" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+              {text.goTo}
+            </p>
+            <h2 className="mt-1 break-words text-3xl font-bold leading-tight md:text-5xl">
+              {action.label[language]}
+            </h2>
+            <p className="mt-3 text-base leading-relaxed text-cyan-50 md:text-lg">
+              {action.description[language]}
+            </p>
+          </div>
+          <ArrowRight
+            aria-hidden
+            className={`hidden size-16 shrink-0 text-cyan-200 md:block ${
+              direction === 'rtl' ? 'rotate-180' : ''
+            }`}
+          />
         </div>
       </section>
     )
@@ -328,7 +456,7 @@ function ActionPanel({ action, language }: { action?: DemoAction; language: Demo
           </div>
         ) : (
           <div className="flex aspect-square items-center justify-center rounded-lg bg-cyan-50 text-cyan-800">
-            {action.type === 'direction' ? <MapPin className="size-16" /> : <UserRoundCheck className="size-16" />}
+            <UserRoundCheck className="size-16" />
           </div>
         )}
       </div>
@@ -411,6 +539,7 @@ function PilotContextPanel({
 export function KioskPrototype() {
   const { actions, answers, askQuestion, cachedAudio, profile, syncStatus, voiceSettings } = usePrototypeStore({ admin: false })
   const [language, setLanguage] = useState<DemoLanguage>(profile.defaultLanguage)
+  const [hasInteracted, setHasInteracted] = useState(false)
   const [question, setQuestion] = useState('')
   const [isThinking, setIsThinking] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -419,7 +548,13 @@ export function KioskPrototype() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [avatarState, setAvatarState] = useState<LiteAvatarState>('idle')
+  const [sttSupported, setSttSupported] = useState(false)
+  const [isListening, setIsListening] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const idleResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const sttFinalRef = useRef('')
+  const submitQuestionRef = useRef<(value: string) => void>(() => {})
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
   const audioAbortRef = useRef<AbortController | null>(null)
@@ -483,6 +618,7 @@ export function KioskPrototype() {
       const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
 
       setIsSpeechSupported(supported)
+      setSttSupported(Boolean(getSpeechRecognitionCtor()))
 
       const storedVoicePreference = window.localStorage.getItem('digital-receptionist.voice-enabled.v1')
       if (storedVoicePreference) {
@@ -516,6 +652,48 @@ export function KioskPrototype() {
     voiceEnabledRef.current = voiceEnabled
     window.localStorage.setItem('digital-receptionist.voice-enabled.v1', voiceEnabled ? '1' : '0')
   }, [voiceEnabled])
+
+  // Idle reset: after IDLE_RESET_MS with no input, return to the welcome screen
+  // so the next visitor sees a fresh kiosk. Listens at capture phase so any
+  // tap/click anywhere in the kiosk counts as activity.
+  useEffect(() => {
+    if (!hasInteracted) {
+      return
+    }
+
+    const reset = () => {
+      if (idleResetRef.current) {
+        clearTimeout(idleResetRef.current)
+      }
+      idleResetRef.current = setTimeout(() => {
+        audioAbortRef.current?.abort()
+        audioRef.current?.pause()
+        audioRef.current = null
+        window.speechSynthesis?.cancel()
+        setIsSpeaking(false)
+        setIsVoicePreparing(false)
+        setAvatarState('idle')
+        setDisplayAnswer({ mode: 'known' })
+        setQuestion('')
+        setHasInteracted(false)
+      }, IDLE_RESET_MS)
+    }
+
+    reset()
+    const events: Array<keyof WindowEventMap> = ['mousedown', 'keydown', 'touchstart']
+    for (const event of events) {
+      window.addEventListener(event, reset, true)
+    }
+
+    return () => {
+      if (idleResetRef.current) {
+        clearTimeout(idleResetRef.current)
+      }
+      for (const event of events) {
+        window.removeEventListener(event, reset, true)
+      }
+    }
+  }, [hasInteracted])
 
   const stopSpeaking = useCallback(() => {
     audioAbortRef.current?.abort()
@@ -791,6 +969,89 @@ export function KioskPrototype() {
     }, 520)
   }
 
+  useEffect(() => {
+    submitQuestionRef.current = submitQuestion
+  })
+
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.abort()
+      } catch {
+        // ignore — recognition may already be stopped
+      }
+    }
+  }, [])
+
+  const stopListening = useCallback(() => {
+    if (!recognitionRef.current) {
+      return
+    }
+    try {
+      recognitionRef.current.stop()
+    } catch {
+      // ignore — already stopped
+    }
+  }, [])
+
+  const startListening = useCallback(() => {
+    const Ctor = getSpeechRecognitionCtor()
+    if (!Ctor) {
+      return
+    }
+
+    // If a previous session is somehow still running, abort it first so the
+    // browser doesn't reject the new start() with InvalidStateError.
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort()
+      } catch {
+        // ignore
+      }
+    }
+
+    sttFinalRef.current = ''
+    const recognition = new Ctor()
+    recognition.lang = speechLangForLanguage(language)
+    recognition.interimResults = true
+    recognition.continuous = false
+
+    recognition.onresult = (event) => {
+      let finalText = sttFinalRef.current
+      let interimText = ''
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i]
+        if (result.isFinal) {
+          finalText += result[0].transcript
+        } else {
+          interimText += result[0].transcript
+        }
+      }
+      sttFinalRef.current = finalText
+      setQuestion((finalText + interimText).trim())
+    }
+
+    recognition.onerror = () => {
+      setIsListening(false)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+      const finalText = sttFinalRef.current.trim()
+      if (finalText) {
+        submitQuestionRef.current(finalText)
+      }
+    }
+
+    try {
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsListening(true)
+    } catch {
+      setIsListening(false)
+    }
+  }, [language])
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     submitQuestion(question)
@@ -805,27 +1066,38 @@ export function KioskPrototype() {
     shouldSpeakNextRef.current = true
   }
 
+  const handleStart = useCallback((next: DemoLanguage) => {
+    setLanguage(next)
+    setDisplayAnswer({ mode: 'known' })
+    setQuestion('')
+    setHasInteracted(true)
+  }, [])
+
   const direction = useMemo(() => getDirection(language), [language])
 
+  if (!hasInteracted) {
+    return <WelcomeScreen profile={profile} onStart={handleStart} />
+  }
+
   return (
-    <main className="min-h-screen bg-[#f5f7fb] p-4 text-slate-950 md:p-6">
+    <main className="min-h-screen bg-[#f5f7fb] p-4 text-slate-950 md:p-6" dir={direction}>
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:border-cyan-300"
+              className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-slate-200 px-5 text-base font-semibold text-slate-700 hover:border-cyan-300"
               href="/admin"
             >
-              <ShieldCheck className="size-4" />
+              <ShieldCheck className="size-5" />
               {uiText[language].admin}
             </Link>
             <button
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700"
+              className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-orange-600 px-5 text-base font-semibold text-white hover:bg-orange-700"
               type="button"
               onClick={handleEscalation}
             >
-              <UserRoundCheck className="size-4" />
+              <UserRoundCheck className="size-5" />
               {uiText[language].help}
             </button>
           </div>
@@ -847,10 +1119,25 @@ export function KioskPrototype() {
           />
         </div>
 
+        <ActionPanel action={localizedAnswer.action} language={language} />
+
         <QuickQuestionGrid answers={answers} language={language} onAsk={submitQuestion} />
 
         <section className="sticky bottom-4 z-10 rounded-lg border border-slate-200 bg-white p-4 shadow-lg md:p-5">
-          <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px]" onSubmit={handleSubmit}>
+          {isListening ? (
+            <div
+              aria-live="polite"
+              className="mb-3 flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900"
+              dir={direction}
+            >
+              <span className="inline-block size-2 animate-pulse rounded-full bg-rose-600" aria-hidden />
+              {uiText[language].listening}
+            </div>
+          ) : null}
+          <form
+            className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px]"
+            onSubmit={handleSubmit}
+          >
             <input
               className="min-h-16 rounded-lg border border-slate-300 bg-white px-4 text-xl text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
               dir={direction}
@@ -859,6 +1146,32 @@ export function KioskPrototype() {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
             />
+            <button
+              aria-label={uiText[language].holdToTalk}
+              aria-pressed={isListening}
+              className={`inline-flex min-h-16 min-w-16 items-center justify-center gap-2 rounded-lg px-5 text-base font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 ${
+                isListening
+                  ? 'bg-rose-600 text-white shadow-lg ring-4 ring-rose-200'
+                  : 'border border-cyan-700 bg-white text-cyan-800 hover:bg-cyan-50'
+              }`}
+              disabled={!sttSupported || isThinking}
+              title={sttSupported ? uiText[language].holdToTalkHint : uiText[language].micUnsupported}
+              type="button"
+              onPointerDown={(event) => {
+                event.preventDefault()
+                startListening()
+              }}
+              onPointerUp={stopListening}
+              onPointerLeave={() => {
+                if (isListening) {
+                  stopListening()
+                }
+              }}
+              onPointerCancel={stopListening}
+            >
+              <Mic className="size-6" />
+              <span className="hidden md:inline">{uiText[language].holdToTalk}</span>
+            </button>
             <button
               className="inline-flex min-h-16 items-center justify-center gap-2 rounded-lg bg-cyan-700 px-5 text-lg font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               disabled={isThinking}
@@ -869,8 +1182,6 @@ export function KioskPrototype() {
             </button>
           </form>
         </section>
-
-        <ActionPanel action={localizedAnswer.action} language={language} />
 
         <footer className="flex justify-end">
           <Link
