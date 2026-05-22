@@ -626,12 +626,22 @@ export function KioskPrototype() {
       }
     }
 
+    if (displayAnswer.mode === 'internet' && displayAnswer.internetText) {
+      // Prefix from profile so the operator can edit the wording.
+      const prefix = profile.internetFallbackPrefix[language] ?? ''
+      return {
+        ...displayAnswer,
+        text: prefix ? `${prefix}\n\n${displayAnswer.internetText}` : displayAnswer.internetText,
+        badge: language === 'ar' ? 'من الإنترنت' : language === 'fr' ? 'Trouvé en ligne' : 'From the web',
+      }
+    }
+
     return {
       mode: 'known',
       text: uiText[language].greeting,
       badge: uiText[language].cacheHit,
     }
-  }, [actions, answers, displayAnswer, language, staffAction])
+  }, [actions, answers, displayAnswer, language, profile.internetFallbackPrefix, staffAction])
 
   useEffect(() => {
     let registeredVoiceListener = false

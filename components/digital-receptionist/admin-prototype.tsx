@@ -1485,8 +1485,13 @@ function FallbackResponsePanel({
 }) {
   const [draft, setDraft] = useState<LocalizedText>(profile.fallbackResponse)
   const [useInternet, setUseInternet] = useState<boolean>(profile.useInternetFallback)
+  const [internetPrefix, setInternetPrefix] = useState<LocalizedText>(profile.internetFallbackPrefix)
   const [seenSignature, setSeenSignature] = useState(() =>
-    JSON.stringify({ fb: profile.fallbackResponse, ui: profile.useInternetFallback }),
+    JSON.stringify({
+      fb: profile.fallbackResponse,
+      ui: profile.useInternetFallback,
+      ip: profile.internetFallbackPrefix,
+    }),
   )
   const [status, setStatus] = useState(
     'Spoken in the selected xtts voice when a visitor asks an unknown question. Saving regenerates the cached audio for the new wording.'
@@ -1495,8 +1500,9 @@ function FallbackResponsePanel({
   const savedSignature = JSON.stringify({
     fb: profile.fallbackResponse,
     ui: profile.useInternetFallback,
+    ip: profile.internetFallbackPrefix,
   })
-  const draftSignature = JSON.stringify({ fb: draft, ui: useInternet })
+  const draftSignature = JSON.stringify({ fb: draft, ui: useInternet, ip: internetPrefix })
   const dirty = draftSignature !== seenSignature
 
   if (seenSignature !== savedSignature) {
@@ -1504,6 +1510,7 @@ function FallbackResponsePanel({
     if (draftSignature === seenSignature) {
       setDraft(profile.fallbackResponse)
       setUseInternet(profile.useInternetFallback)
+      setInternetPrefix(profile.internetFallbackPrefix)
     }
   }
 
@@ -1515,6 +1522,7 @@ function FallbackResponsePanel({
         ...profile,
         fallbackResponse: draft,
         useInternetFallback: useInternet,
+        internetFallbackPrefix: internetPrefix,
       })
       setStatus(
         useInternet
@@ -1588,6 +1596,21 @@ function FallbackResponsePanel({
             </p>
           </div>
         </label>
+
+        <div className={`mt-4 ${useInternet ? '' : 'opacity-60'}`}>
+          <LocalizedFieldSet
+            label="Internet fallback prefix (shown above the web answer)"
+            multiline
+            value={internetPrefix}
+            onChange={setInternetPrefix}
+          />
+          {!useInternet ? (
+            <p className="mt-2 text-xs text-slate-500">
+              Only used when the toggle above is on. Editing is allowed so wording is ready when
+              you enable the feature.
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <p className="mt-3 text-sm font-medium text-slate-600">{status}</p>

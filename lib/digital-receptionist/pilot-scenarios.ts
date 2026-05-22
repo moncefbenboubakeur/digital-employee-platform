@@ -177,6 +177,11 @@ const posteProfile: PilotProfile = {
   },
   contactNumber: '1530',
   useInternetFallback: false,
+  internetFallbackPrefix: {
+    ar: 'لم أتدرب على هذا السؤال، لكن هذا ما وجدته على الإنترنت:',
+    fr: "Je n'ai pas été entraînée sur cette question, mais voici ce que j'ai trouvé en ligne :",
+    en: "I wasn't trained on this question, but here's what I found online:",
+  },
   defaultLanguage: 'fr',
   currentWait: {
     ar: 'الانتظار التقريبي: 18 دقيقة',
@@ -501,6 +506,11 @@ const mallProfile: PilotProfile = {
   },
   contactNumber: '0550 00 00 00',
   useInternetFallback: false,
+  internetFallbackPrefix: {
+    ar: 'لم أتدرب على هذا السؤال، لكن هذا ما وجدته على الإنترنت:',
+    fr: "Je n'ai pas été entraînée sur cette question, mais voici ce que j'ai trouvé en ligne :",
+    en: "I wasn't trained on this question, but here's what I found online:",
+  },
   defaultLanguage: 'fr',
   currentWait: {
     ar: 'الاستقبال متاح الآن',

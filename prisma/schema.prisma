@@ -34,6 +34,10 @@ model Location {
   // (project: dep-internet-fallback) and the kiosk shows a "found on the
   // internet" answer instead of the canned fallback wording.
   useInternetFallback  Boolean         @default(false)
+  // Sentence shown ABOVE the internet-fallback answer ("I wasn't trained on
+  // this, but here's what I found online…"). Editable per tenant in all
+  // three languages. Stored as LocalizedText JSON.
+  internetFallbackPrefixJson String  @default("{}")
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)

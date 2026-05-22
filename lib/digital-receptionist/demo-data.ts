@@ -44,6 +44,12 @@ export type PilotProfile = {
    * internet" answer instead of the canned fallback wording.
    */
   useInternetFallback: boolean
+  /**
+   * Sentence shown above an internet-fallback answer ("I wasn't trained on
+   * this, but here's what I found online…"). Editable per tenant in all
+   * three languages. Ignored when useInternetFallback is false.
+   */
+  internetFallbackPrefix: LocalizedText
   counters: PilotCounter[]
 }
 
@@ -215,6 +221,11 @@ export const pilotProfile: PilotProfile = {
   contactNumber: '021 00 00 00',
   defaultLanguage: 'fr',
   useInternetFallback: false,
+  internetFallbackPrefix: {
+    ar: 'لم أتدرب على هذا السؤال، لكن هذا ما وجدته على الإنترنت:',
+    fr: "Je n'ai pas été entraînée sur cette question, mais voici ce que j'ai trouvé en ligne :",
+    en: "I wasn't trained on this question, but here's what I found online:",
+  },
   currentWait: {
     ar: 'الانتظار التقريبي: 12 دقيقة',
     fr: 'Attente estimée : 12 min',

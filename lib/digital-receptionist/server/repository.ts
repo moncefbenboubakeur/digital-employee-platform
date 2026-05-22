@@ -113,6 +113,7 @@ function locationToProfile(location: Location, counters: Counter[]): PilotProfil
     liveStatus: parseJson(location.liveStatusJson),
     fallbackResponse: parseJson(location.fallbackResponseJson),
     useInternetFallback: location.useInternetFallback,
+    internetFallbackPrefix: parseJson(location.internetFallbackPrefixJson),
     counters: counters
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((counter) => ({
@@ -296,6 +297,8 @@ export async function ensureDefaultPilot() {
           currentWaitJson: toJson(pilotProfile.currentWait),
           liveStatusJson: toJson(pilotProfile.liveStatus),
           fallbackResponseJson: toJson(pilotProfile.fallbackResponse),
+          useInternetFallback: pilotProfile.useInternetFallback,
+          internetFallbackPrefixJson: toJson(pilotProfile.internetFallbackPrefix),
           voiceSettingsJson: toJson(defaultVoiceSettings),
           counters: {
             create: pilotProfile.counters.map((counter, index) => ({
@@ -512,6 +515,7 @@ export async function saveProfile(profile: PilotProfile) {
         liveStatusJson: toJson(normalized.liveStatus),
         fallbackResponseJson: toJson(normalized.fallbackResponse),
         useInternetFallback: normalized.useInternetFallback,
+        internetFallbackPrefixJson: toJson(normalized.internetFallbackPrefix),
       },
     })
     await tx.counter.deleteMany({ where: { locationId: defaultLocationId } })
@@ -585,6 +589,7 @@ export async function applyPilotScenario(scenarioId: string) {
         liveStatusJson: toJson(profile.liveStatus),
         fallbackResponseJson: toJson(profile.fallbackResponse),
         useInternetFallback: profile.useInternetFallback,
+        internetFallbackPrefixJson: toJson(profile.internetFallbackPrefix),
       },
     })
     await tx.counter.createMany({
@@ -880,6 +885,7 @@ export async function importSnapshot(snapshot: PilotSnapshot) {
         liveStatusJson: toJson(profile.liveStatus),
         fallbackResponseJson: toJson(profile.fallbackResponse),
         useInternetFallback: profile.useInternetFallback,
+        internetFallbackPrefixJson: toJson(profile.internetFallbackPrefix),
       },
     })
     await tx.counter.createMany({

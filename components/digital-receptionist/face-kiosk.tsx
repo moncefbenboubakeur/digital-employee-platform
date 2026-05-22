@@ -1190,11 +1190,7 @@ export function FaceKiosk() {
           >
             {answerKind === 'internet' ? (
               <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-violet-200/90" dir={dir}>
-                {language === 'ar'
-                  ? 'لم أتدرب على هذا السؤال، لكن هذا ما وجدته على الإنترنت'
-                  : language === 'fr'
-                  ? "Je n'ai pas été entraînée sur cette question, mais voici ce que j'ai trouvé en ligne"
-                  : "I wasn't trained on this question, but here's what I found online"}
+                {profile.internetFallbackPrefix[language]}
               </p>
             ) : null}
             <p className="text-center text-xl font-medium leading-relaxed md:text-2xl">

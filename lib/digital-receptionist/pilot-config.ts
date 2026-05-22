@@ -131,6 +131,10 @@ export function normalizePilotProfile(value: unknown): PilotProfile {
     liveStatus: normalizeLocalizedText(value.liveStatus, pilotProfile.liveStatus),
     fallbackResponse: normalizeLocalizedText(value.fallbackResponse, pilotProfile.fallbackResponse),
     useInternetFallback: booleanValue(value.useInternetFallback, pilotProfile.useInternetFallback),
+    internetFallbackPrefix: normalizeLocalizedText(
+      value.internetFallbackPrefix,
+      pilotProfile.internetFallbackPrefix,
+    ),
     counters,
   }
 }
