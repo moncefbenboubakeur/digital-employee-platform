@@ -726,7 +726,11 @@ export async function recordQuestionEvent(input: {
   return event
 }
 
-export async function recordUnknownQuestion(question: string, language: DemoLanguage) {
+export async function recordUnknownQuestion(
+  question: string,
+  language: DemoLanguage,
+  drafterProjectName?: string,
+) {
   await ensureDefaultPilot()
   const existing = await prisma.unknownQuestion.findMany({
     where: { locationId: defaultLocationId, status: 'new', language },
@@ -769,6 +773,7 @@ export async function recordUnknownQuestion(question: string, language: DemoLang
         question: nextQuestion.question,
         language: nextQuestion.language,
         profile,
+        projectName: drafterProjectName,
       })
     }
   }

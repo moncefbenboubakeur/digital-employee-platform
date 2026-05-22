@@ -38,6 +38,7 @@ import {
   normalizeVoiceSettings,
   type VoiceSettings,
 } from '@/lib/digital-receptionist/voice-library'
+import { routingHeaders } from '@/lib/digital-receptionist/lapi-routing-prefs'
 
 type AskKnownResult = {
   type: 'known'
@@ -303,7 +304,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
         }))
         const response = await fetch('/api/llm-match', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...routingHeaders() },
           body: JSON.stringify({ question, language, candidates }),
         })
         if (response.ok) {
@@ -343,7 +344,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
         }),
           fetch('/api/unknown-questions', {
             method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...routingHeaders() },
           body: JSON.stringify({ question, language }),
         }),
       ]).catch(() => setSyncStatus('offline'))

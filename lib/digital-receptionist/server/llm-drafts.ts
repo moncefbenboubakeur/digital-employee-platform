@@ -9,6 +9,7 @@ import type {
 } from '../demo-data'
 import { storageDir } from './storage'
 import { getLapiAuthToken, lapiBaseUrl, lapiIsConfigured } from './lapi-client'
+import { DRAFTER_PINNED_PROJECT } from '../lapi-routing'
 
 // Why an env gate: this feature is opt-in because background drafting
 // generates content that may surface to visitors after operator review.
@@ -18,11 +19,11 @@ export function isLlmDraftsEnabled(): boolean {
   return process.env.DR_LLM_DRAFTS === '1' && lapiIsConfigured()
 }
 
-// LAPI project name. Daemon-side YAML at ~/.llmbridge/projects/dep-drafter.yaml
+// Default LAPI project. Daemon-side YAML at ~/.llmbridge/projects/dep-drafter.yaml
 // selects the actual backend (claude-api, claude-cli, codex-cli, …). The
 // drafter can tolerate higher latency than the matcher, so it's a candidate
-// for subscription-backed CLI routing (free at point of use).
-const LAPI_PROJECT = 'dep-drafter'
+// for subscription-backed CLI routing (free at point of use). The admin
+// "test routing" UI can override this per draft via projectName.
 
 const LAPI_MODEL_FIELD = 'claude-api'
 
@@ -86,6 +87,8 @@ export type GenerateDraftInput = {
   question: string
   language: DemoLanguage
   profile: PilotProfile
+  /** Override default `dep-drafter` LAPI project (admin test routing). */
+  projectName?: string
 }
 
 const draftSchema = {
@@ -106,11 +109,12 @@ export async function generateAndStoreDraft(
     return null
   }
 
+  const projectName = input.projectName ?? DRAFTER_PINNED_PROJECT
   // Anthropic SDK pointed at LAPI. authToken sends `Authorization: Bearer`.
   const client = new Anthropic({
     baseURL: lapiBaseUrl(),
     authToken: getLapiAuthToken(),
-    defaultHeaders: { 'X-Project': LAPI_PROJECT },
+    defaultHeaders: { 'X-Project': projectName },
   })
 
   let response
@@ -166,7 +170,7 @@ export async function generateAndStoreDraft(
     // response.model carries whatever the model field was set to (the LAPI
     // backend id). To know the actual provider model used we'd need a v2.x
     // LAPI feature that surfaces it. For now the source is the LAPI project.
-    source: `lapi:${LAPI_PROJECT}`,
+    source: `lapi:${projectName}`,
     generatedAt: new Date().toISOString(),
   }
 

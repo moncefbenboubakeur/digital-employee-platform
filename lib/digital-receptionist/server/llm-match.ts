@@ -6,6 +6,7 @@ import {
   embeddingsAvailable,
 } from './embeddings'
 import { getLapiAuthToken, lapiBaseUrl, lapiIsConfigured } from './lapi-client'
+import { MATCHER_PINNED_PROJECT } from '../lapi-routing'
 
 export type LlmMatchCandidate = {
   id: string
@@ -27,11 +28,11 @@ export function isLlmMatchEnabled(): boolean {
   return process.env.DR_LLM_MATCH === '1' && lapiIsConfigured()
 }
 
-// LAPI project name. Daemon-side config lives at
+// Default LAPI project. Daemon-side config lives at
 // ~/.llmbridge/projects/dep-match.yaml and picks the actual provider+model.
 // Changing the routing (claude-api vs openai-api vs ...) is a one-line YAML
-// edit on the daemon, not a DEP code change.
-const LAPI_PROJECT = 'dep-match'
+// edit on the daemon, not a DEP code change. The admin "test routing" UI
+// can override this per request via the projectName parameter.
 
 // `model` is the LAPI backend id, not the underlying provider model. The
 // daemon resolves to whatever Anthropic/OpenAI/Google model the backend is
@@ -122,10 +123,12 @@ export async function findLlmMatch({
   question,
   language,
   candidates,
+  projectName,
 }: {
   question: string
   language: DemoLanguage
   candidates: LlmMatchCandidate[]
+  projectName?: string
 }): Promise<LlmMatchResult | null> {
   if (!isLlmMatchEnabled() || candidates.length === 0) {
     return null
@@ -174,7 +177,7 @@ export async function findLlmMatch({
   const client = new Anthropic({
     baseURL: lapiBaseUrl(),
     authToken: getLapiAuthToken(),
-    defaultHeaders: { 'X-Project': LAPI_PROJECT },
+    defaultHeaders: { 'X-Project': projectName ?? MATCHER_PINNED_PROJECT },
   })
 
   let response

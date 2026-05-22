@@ -5,6 +5,11 @@ import {
   isLlmMatchEnabled,
   type LlmMatchCandidate,
 } from '@/lib/digital-receptionist/server/llm-match'
+import {
+  MATCHER_BACKEND_HEADER,
+  parseRoutingChoice,
+  resolveMatcherProject,
+} from '@/lib/digital-receptionist/lapi-routing'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -41,11 +46,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ enabled: true, matchedAnswerId: null, confidence: null })
   }
 
-  const result = await findLlmMatch({ question, language, candidates })
+  const choice = parseRoutingChoice(request.headers.get(MATCHER_BACKEND_HEADER))
+  const projectName = resolveMatcherProject(choice)
+  const result = await findLlmMatch({ question, language, candidates, projectName })
 
   return NextResponse.json({
     enabled: true,
     matchedAnswerId: result?.matchedAnswerId ?? null,
     confidence: result?.confidence ?? null,
+    routedTo: projectName,
   })
 }

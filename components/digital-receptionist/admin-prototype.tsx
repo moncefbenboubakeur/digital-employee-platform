@@ -47,6 +47,17 @@ import {
   parseKeywordDraft,
 } from '@/lib/digital-receptionist/pilot-config'
 import { pilotScenarios, type PilotScenario } from '@/lib/digital-receptionist/pilot-scenarios'
+import {
+  PINNED,
+  TESTABLE_BACKENDS,
+  type RoutingChoice,
+} from '@/lib/digital-receptionist/lapi-routing'
+import {
+  getDrafterBackend,
+  getMatcherBackend,
+  setDrafterBackend,
+  setMatcherBackend,
+} from '@/lib/digital-receptionist/lapi-routing-prefs'
 import { usePrototypeStore } from './use-prototype-store'
 import type { AuditLogItem, KioskDeviceItem, PilotAnalytics } from './use-prototype-store'
 import {
@@ -2169,6 +2180,117 @@ function VoiceSettingsPanel({
   )
 }
 
+function LapiTestRoutingPanel() {
+  const [matcher, setMatcher] = useState<RoutingChoice>(PINNED)
+  const [drafter, setDrafter] = useState<RoutingChoice>(PINNED)
+
+  useEffect(() => {
+    setMatcher(getMatcherBackend())
+    setDrafter(getDrafterBackend())
+  }, [])
+
+  const onMatcherChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value as RoutingChoice
+    setMatcher(next)
+    setMatcherBackend(next)
+  }
+  const onDrafterChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value as RoutingChoice
+    setDrafter(next)
+    setDrafterBackend(next)
+  }
+  const resetAll = () => {
+    setMatcher(PINNED)
+    setDrafter(PINNED)
+    setMatcherBackend(PINNED)
+    setDrafterBackend(PINNED)
+  }
+
+  const overridden = matcher !== PINNED || drafter !== PINNED
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className="flex size-11 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+          <Cpu className="size-5" />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">LAPI test routing</h2>
+          <p className="text-sm text-slate-500">
+            Override the LAPI backend per call site to compare providers from this browser.
+            Choice is stored locally; pinned production routing comes from
+            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 text-xs">~/.llmbridge/projects/</code>
+            YAMLs.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-slate-700">
+            Matcher backend
+            <span className="ml-2 text-xs font-normal text-slate-500">
+              (kiosk Q&A — used on every visitor question)
+            </span>
+          </span>
+          <select
+            className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none"
+            value={matcher}
+            onChange={onMatcherChange}
+          >
+            <option value={PINNED}>Pinned (dep-match.yaml)</option>
+            {TESTABLE_BACKENDS.map((backend) => (
+              <option key={backend} value={backend}>
+                bench-{backend}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-slate-700">
+            Drafter backend
+            <span className="ml-2 text-xs font-normal text-slate-500">
+              (background draft for new unknown questions)
+            </span>
+          </span>
+          <select
+            className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none"
+            value={drafter}
+            onChange={onDrafterChange}
+          >
+            <option value={PINNED}>Pinned (dep-drafter.yaml)</option>
+            {TESTABLE_BACKENDS.map((backend) => (
+              <option key={backend} value={backend}>
+                bench-{backend}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+        <button
+          type="button"
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          onClick={resetAll}
+          disabled={!overridden}
+        >
+          <RotateCcw className="size-4" />
+          Reset to pinned
+        </button>
+        {overridden ? (
+          <span className="text-amber-700">
+            Overrides active for this browser. Production routing is unchanged.
+          </span>
+        ) : (
+          <span className="text-slate-500">No overrides — using daemon-side pinned routing.</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SettingsPanel({
   profile,
   saveVoiceSettings,
@@ -2224,6 +2346,7 @@ function SettingsPanel({
     <section className="grid gap-5">
       <VoiceSettingsPanel saveVoiceSettings={saveVoiceSettings} voiceSettings={voiceSettings} />
       <FallbackResponsePanel profile={profile} savePilotProfile={savePilotProfile} />
+      <LapiTestRoutingPanel />
       <VoiceWorkerPanel />
       <AudioCachePanel />
 

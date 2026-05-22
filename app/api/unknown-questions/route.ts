@@ -8,6 +8,11 @@ import {
   recordUnknownQuestion,
 } from '@/lib/digital-receptionist/server/repository'
 import { startAudioCacheWarmJob } from '@/lib/digital-receptionist/server/voice-audio'
+import {
+  DRAFTER_BACKEND_HEADER,
+  parseRoutingChoice,
+  resolveDrafterProject,
+} from '@/lib/digital-receptionist/lapi-routing'
 
 export async function GET(request: NextRequest) {
   if (!isAdminRequest(request)) {
@@ -27,7 +32,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing question or language' }, { status: 400 })
   }
 
-  return NextResponse.json(await recordUnknownQuestion(body.question, body.language))
+  const drafterChoice = parseRoutingChoice(request.headers.get(DRAFTER_BACKEND_HEADER))
+  const drafterProject = resolveDrafterProject(drafterChoice)
+  return NextResponse.json(
+    await recordUnknownQuestion(body.question, body.language, drafterProject),
+  )
 }
 
 export async function PATCH(request: NextRequest) {
