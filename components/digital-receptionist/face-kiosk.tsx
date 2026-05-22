@@ -597,13 +597,22 @@ function RotatingGlobe({ active, title }: { active: boolean; title: string }) {
         </g>
       </svg>
       <style jsx>{`
+        /* Safari requires transform-box:fill-box on SVG <g> elements for
+           CSS transform-origin to resolve against the element's own bbox.
+           Chrome accepts pixel-based origins on the viewBox coordinate
+           system, Safari does not. Matches the .face-bloom-mouth pattern
+           already used elsewhere in this file. */
         :global(.globe-orbit) {
           animation: globe-orbit 12s linear infinite;
-          transform-origin: 12px 12px;
+          transform-origin: center;
+          transform-box: fill-box;
+          will-change: transform;
         }
         :global(.globe-orbit-fast) {
           animation: globe-orbit 4s linear infinite;
-          transform-origin: 12px 12px;
+          transform-origin: center;
+          transform-box: fill-box;
+          will-change: transform;
         }
         @keyframes globe-orbit {
           from { transform: rotate(0deg); }
