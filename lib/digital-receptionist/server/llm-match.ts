@@ -1,5 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { DemoLanguage } from '../demo-data'
+import {
+  cosineSimilarity,
+  embedTexts,
+  embeddingsAvailable,
+} from './embeddings'
 import { getLapiAuthToken, lapiBaseUrl, lapiIsConfigured } from './lapi-client'
 
 export type LlmMatchCandidate = {
@@ -30,11 +35,15 @@ const LAPI_PROJECT = 'dep-match'
 
 // `model` is the LAPI backend id, not the underlying provider model. The
 // daemon resolves to whatever Anthropic/OpenAI/Google model the backend is
-// configured with. DR_LLM_MATCH_MODEL is no longer consulted — that decision
-// now lives in the daemon's env (e.g. LLMBRIDGE_CC_MODEL) and the project
-// YAML. Kept the env var name in .env.example as a hint, but it's a no-op
-// in DEP code.
+// configured with.
 const LAPI_MODEL_FIELD = 'claude-api'
+
+// How many top candidates from the embedding pre-filter we forward to the
+// LLM tie-break step. Smaller = faster LLM call but more chance the right
+// answer is filtered out; larger = slower but safer. 8 is a balance that
+// keeps the LLM input under ~1.5k tokens while leaving headroom for the
+// embedding model's occasional mis-rankings.
+const PRE_FILTER_TOP_K = 8
 
 const matchSchema = {
   type: 'object',
@@ -59,6 +68,56 @@ const SYSTEM_PROMPT = [
   'Output strict JSON matching the schema.',
 ].join('\n')
 
+// ───────────────────────────────────────────────────────────────────────────
+// Embedding cache (per-process, in-memory)
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Catalog content is static across many requests, so we embed it once on
+// first call and reuse. Cache key = JSON-stringified candidate ids+text so
+// that any catalog edit (which changes ids, canonical, or answer) busts
+// the cache automatically. SQLite-persisted cache is a v2 follow-up if
+// startup cost matters at scale.
+
+type CandidateVectors = {
+  cacheKey: string
+  vectors: number[][]
+  candidates: LlmMatchCandidate[]
+}
+
+let cachedVectors: CandidateVectors | null = null
+
+function catalogCacheKey(candidates: LlmMatchCandidate[]): string {
+  // Stable, content-addressable key. Order matters because we keep
+  // candidates and vectors index-aligned.
+  return JSON.stringify(
+    candidates.map((c) => [c.id, c.canonical.length, c.answer.length]),
+  )
+}
+
+async function preFilterByEmbedding(
+  question: string,
+  candidates: LlmMatchCandidate[],
+): Promise<LlmMatchCandidate[]> {
+  const cacheKey = catalogCacheKey(candidates)
+
+  if (!cachedVectors || cachedVectors.cacheKey !== cacheKey) {
+    // Embed the full catalog. Use the canonical question line, NOT the
+    // answer body, since we're matching questions to questions.
+    const catalogTexts = candidates.map((c) => c.canonical)
+    const vectors = await embedTexts(catalogTexts)
+    cachedVectors = { cacheKey, vectors, candidates }
+  }
+
+  // Embed the visitor question, then cosine-similarity rank.
+  const [questionVec] = await embedTexts([question])
+  const scored = cachedVectors.candidates.map((cand, i) => ({
+    candidate: cand,
+    score: cosineSimilarity(questionVec, cachedVectors!.vectors[i]),
+  }))
+  scored.sort((a, b) => b.score - a.score)
+  return scored.slice(0, PRE_FILTER_TOP_K).map((s) => s.candidate)
+}
+
 export async function findLlmMatch({
   question,
   language,
@@ -72,9 +131,30 @@ export async function findLlmMatch({
     return null
   }
 
-  // Cap to keep token cost predictable. 50 answers × ~150 tokens each = ~7.5k
-  // input tokens which is well within Haiku's budget.
-  const slice = candidates.slice(0, 50)
+  // Two-stage retrieval:
+  //   1. Embedding pre-filter narrows candidates to the top-K most-similar.
+  //      Cheap (~50ms locally, no network).
+  //   2. LLM tie-break + confidence label on just those K candidates.
+  //      ~500 input tokens instead of ~7,500 → much faster matcher latency.
+  //
+  // Falls back to LLM-only over the full catalog if local embeddings aren't
+  // configured (EMBEDDINGS_WORKER_COMMAND unset) — operator opts into the
+  // fast path by setting the env var.
+  let workingSet: LlmMatchCandidate[] = candidates
+  if (embeddingsAvailable() && candidates.length > PRE_FILTER_TOP_K) {
+    try {
+      workingSet = await preFilterByEmbedding(question, candidates)
+    } catch (error) {
+      console.warn('[llm-match] embedding pre-filter failed, falling back to full catalog', error)
+      // Best-effort: keep going with full catalog. The LLM step still works,
+      // just slower.
+    }
+  }
+
+  // Cap to keep token cost predictable even on the fallback path (no
+  // embeddings, full catalog). 50 answers × ~150 tokens each = ~7.5k input
+  // tokens which is well within Haiku's budget.
+  const slice = workingSet.slice(0, 50)
   const catalog = slice
     .map((entry, index) => `${index + 1}. id="${entry.id}"\n   Q: ${entry.canonical}\n   A: ${entry.answer}`)
     .join('\n')

@@ -33,6 +33,11 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  cosineSimilarity,
+  embedTexts,
+  embeddingsAvailable,
+} from '../lib/digital-receptionist/server/embeddings.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -222,7 +227,7 @@ const DRAFTER_USER_MESSAGE =
 
 type Outcome = {
   backend: BenchBackend
-  prompt: 'matcher' | 'drafter'
+  prompt: 'matcher' | 'matcher-prefilter' | 'drafter'
   ok: boolean
   ms: number
   parseOk: boolean
@@ -230,6 +235,8 @@ type Outcome = {
   text: string
   errorMessage?: string
 }
+
+const PRE_FILTER_TOP_K = 8
 
 async function callLapi(opts: {
   projectName: string
@@ -320,15 +327,32 @@ function tryParse(text: string, schema: 'matcher' | 'drafter'): { ok: boolean; e
   return { ok: true }
 }
 
+async function preFilterTopK(
+  question: string,
+  catalog: CatalogEntry[],
+  k: number,
+): Promise<CatalogEntry[]> {
+  const catalogTexts = catalog.map((c) => c.canonical)
+  const catalogVectors = await embedTexts(catalogTexts)
+  const [questionVector] = await embedTexts([question])
+  const scored = catalog.map((c, i) => ({
+    candidate: c,
+    score: cosineSimilarity(questionVector, catalogVectors[i]),
+  }))
+  scored.sort((a, b) => b.score - a.score)
+  return scored.slice(0, k).map((s) => s.candidate)
+}
+
 async function benchOne(
   backend: BenchBackend,
   catalog: CatalogEntry[],
+  preFilteredCatalog: CatalogEntry[] | null,
 ): Promise<Outcome[]> {
   const projectName = ensureProjectYaml(backend)
   const outcomes: Outcome[] = []
 
-  // Matcher
-  process.stdout.write(`  ${backend} / matcher  ... `)
+  // Matcher (full catalog, baseline — what production was doing pre-embedding)
+  process.stdout.write(`  ${backend} / matcher (full ${catalog.length})  ... `)
   const m = await callLapi({
     projectName,
     backend,
@@ -350,6 +374,34 @@ async function benchOne(
     text: m.text,
     errorMessage: m.errorMessage,
   })
+
+  // Matcher (two-stage: embedding pre-filter narrows to top-K, LLM tie-breaks)
+  if (preFilteredCatalog) {
+    process.stdout.write(
+      `  ${backend} / matcher (pre-filter top-${preFilteredCatalog.length})  ... `,
+    )
+    const mp = await callLapi({
+      projectName,
+      backend,
+      system: MATCHER_SYSTEM_PROMPT,
+      schema: MATCHER_SCHEMA,
+      userMessage: buildMatcherUserMessage(preFilteredCatalog),
+    })
+    const mpParse = tryParse(mp.text, 'matcher')
+    console.log(
+      `${(mp.ms / 1000).toFixed(2)}s ${mp.errorMessage ? `(ERR: ${mp.errorMessage.slice(0, 60)})` : mpParse.ok ? '(parse ok)' : `(parse FAIL: ${mpParse.err})`}`,
+    )
+    outcomes.push({
+      backend,
+      prompt: 'matcher-prefilter',
+      ok: !mp.errorMessage,
+      ms: mp.ms,
+      parseOk: mpParse.ok,
+      parseError: mpParse.err,
+      text: mp.text,
+      errorMessage: mp.errorMessage,
+    })
+  }
 
   // Drafter
   process.stdout.write(`  ${backend} / drafter  ... `)
@@ -378,38 +430,63 @@ async function benchOne(
   return outcomes
 }
 
-function printTable(results: Outcome[]): void {
-  const grouped = new Map<BenchBackend, { matcher?: Outcome; drafter?: Outcome }>()
+function printTable(results: Outcome[], hasPreFilter: boolean): void {
+  type Row = { matcher?: Outcome; 'matcher-prefilter'?: Outcome; drafter?: Outcome }
+  const grouped = new Map<BenchBackend, Row>()
   for (const r of results) {
     if (!grouped.has(r.backend)) grouped.set(r.backend, {})
     grouped.get(r.backend)![r.prompt] = r
   }
 
+  const fmt = (o?: Outcome) =>
+    o ? (o.errorMessage ? `ERR ${(o.ms / 1000).toFixed(1)}s` : `${(o.ms / 1000).toFixed(2)}s`) : '—'
+  const parseStr = (o?: Outcome) =>
+    o ? (o.errorMessage ? '—' : o.parseOk ? '✓' : '✗') : '—'
+
   console.log('')
   console.log('### Measured latencies (real DEP-shaped prompts via LAPI)')
   console.log('')
-  console.log('| Backend     | Matcher (~7.5k input) | Drafter (trilingual) | Matcher JSON | Drafter JSON |')
-  console.log('|-------------|-----------------------|----------------------|--------------|--------------|')
-  for (const backend of BENCH_BACKENDS) {
-    const row = grouped.get(backend)
-    if (!row) {
-      console.log(`| \`${backend}\` | not registered        | not registered       | —            | —            |`)
-      continue
-    }
-    const m = row.matcher
-    const d = row.drafter
-    const fmt = (o?: Outcome) =>
-      o ? (o.errorMessage ? `ERR ${(o.ms / 1000).toFixed(1)}s` : `${(o.ms / 1000).toFixed(2)}s`) : '—'
-    const parseStr = (o?: Outcome) =>
-      o ? (o.errorMessage ? '—' : o.parseOk ? '✓' : '✗') : '—'
-    const cellM = fmt(m).padEnd(21)
-    const cellD = fmt(d).padEnd(20)
+
+  if (hasPreFilter) {
     console.log(
-      `| \`${backend.padEnd(11)}\` | ${cellM} | ${cellD} | ${parseStr(m).padEnd(12)} | ${parseStr(d).padEnd(12)} |`,
+      '| Backend     | Matcher (full 50)     | Matcher (pre-filter top-8) | Speedup | Drafter (trilingual) | Match-full JSON | Match-pf JSON | Drafter JSON |',
     )
+    console.log(
+      '|-------------|-----------------------|----------------------------|---------|----------------------|-----------------|---------------|--------------|',
+    )
+    for (const backend of BENCH_BACKENDS) {
+      const row = grouped.get(backend)
+      if (!row) {
+        console.log(`| \`${backend.padEnd(11)}\` | not registered        | not registered             | —       | not registered       | —               | —             | —            |`)
+        continue
+      }
+      const speedup =
+        row.matcher && row['matcher-prefilter'] && !row.matcher.errorMessage && !row['matcher-prefilter'].errorMessage
+          ? `${(row.matcher.ms / row['matcher-prefilter'].ms).toFixed(1)}×`
+          : '—'
+      console.log(
+        `| \`${backend.padEnd(11)}\` | ${fmt(row.matcher).padEnd(21)} | ${fmt(row['matcher-prefilter']).padEnd(26)} | ${speedup.padEnd(7)} | ${fmt(row.drafter).padEnd(20)} | ${parseStr(row.matcher).padEnd(15)} | ${parseStr(row['matcher-prefilter']).padEnd(13)} | ${parseStr(row.drafter).padEnd(12)} |`,
+      )
+    }
+  } else {
+    console.log('| Backend     | Matcher (~7.5k input) | Drafter (trilingual) | Matcher JSON | Drafter JSON |')
+    console.log('|-------------|-----------------------|----------------------|--------------|--------------|')
+    for (const backend of BENCH_BACKENDS) {
+      const row = grouped.get(backend)
+      if (!row) {
+        console.log(`| \`${backend}\` | not registered        | not registered       | —            | —            |`)
+        continue
+      }
+      console.log(
+        `| \`${backend.padEnd(11)}\` | ${fmt(row.matcher).padEnd(21)} | ${fmt(row.drafter).padEnd(20)} | ${parseStr(row.matcher).padEnd(12)} | ${parseStr(row.drafter).padEnd(12)} |`,
+      )
+    }
   }
   console.log('')
   console.log('Legend: ✓ = response parsed as the expected JSON schema, ✗ = parse failed (model returned prose / malformed JSON).')
+  if (hasPreFilter) {
+    console.log('Pre-filter: embedded the catalog locally (sentence-transformers, no network) and sent only the top-8 most-similar entries to the LLM. Embedding overhead is included in the timing.')
+  }
 }
 
 async function main(): Promise<void> {
@@ -445,16 +522,55 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  console.log('Running benchmark (this will take ~1-3 minutes; each backend × 2 prompts):\n')
+  // Pre-compute the embedding pre-filter once, BEFORE timing the LLM calls.
+  // We bake the embedding cost into the matcher-prefilter timing per backend,
+  // so this top-level call just primes the worker + warms the model.
   const catalog = buildCatalog()
+  let preFilteredCatalog: CatalogEntry[] | null = null
+  if (embeddingsAvailable()) {
+    console.log('Local embeddings worker available — will measure two-stage matcher too.')
+    process.stdout.write('Warming embeddings worker + pre-filtering catalog (one-time) ... ')
+    const tWarm = Date.now()
+    const visitorQuestion =
+      "Combien de temps pour faire renouveler ma carte d'identité ?"
+    try {
+      preFilteredCatalog = await (async () => {
+        const catalogTexts = catalog.map((c) => c.canonical)
+        const catalogVectors = await embedTexts(catalogTexts)
+        const [questionVector] = await embedTexts([visitorQuestion])
+        const scored = catalog.map((c, i) => ({
+          c,
+          s: cosineSimilarity(questionVector, catalogVectors[i]),
+        }))
+        scored.sort((a, b) => b.s - a.s)
+        console.log(`${((Date.now() - tWarm) / 1000).toFixed(2)}s (embedded ${catalog.length} + 1 question)`)
+        console.log(
+          `  Top-${PRE_FILTER_TOP_K} by cosine similarity: ${scored
+            .slice(0, PRE_FILTER_TOP_K)
+            .map((x) => `${x.c.id}(${x.s.toFixed(2)})`)
+            .join(', ')}`,
+        )
+        return scored.slice(0, PRE_FILTER_TOP_K).map((x) => x.c)
+      })()
+    } catch (err) {
+      console.log(`FAILED: ${err instanceof Error ? err.message : err}`)
+      console.log('  → continuing without pre-filter measurement')
+      preFilteredCatalog = null
+    }
+  } else {
+    console.log('EMBEDDINGS_WORKER_COMMAND unset — will measure only the full-catalog matcher.')
+  }
+
+  console.log('')
+  console.log('Running benchmark (each backend × matcher full × matcher pre-filter × drafter):\n')
   const allResults: Outcome[] = []
 
   for (const backend of registered) {
-    const outcomes = await benchOne(backend, catalog)
+    const outcomes = await benchOne(backend, catalog, preFilteredCatalog)
     allResults.push(...outcomes)
   }
 
-  printTable(allResults)
+  printTable(allResults, preFilteredCatalog !== null)
 
   // Persist raw results
   const outPath = resolve(__dirname, 'lapi-bench-results.json')
