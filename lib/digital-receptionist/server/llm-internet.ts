@@ -64,10 +64,18 @@ export async function findInternetAnswer({
   question,
   language,
   profile,
+  signal,
 }: {
   question: string
   language: DemoLanguage
   profile: PilotProfile
+  /**
+   * Optional AbortSignal — when the browser cancels the request (e.g.
+   * visitor taps the mic again to ask a different question), we cancel
+   * the in-flight LAPI call so the upstream LLM stops generating tokens
+   * nobody will see.
+   */
+  signal?: AbortSignal
 }): Promise<InternetAnswer | null> {
   if (!isInternetFallbackEnabled()) {
     return null
@@ -81,24 +89,31 @@ export async function findInternetAnswer({
 
   let response
   try {
-    response = await client.messages.create({
-      model: LAPI_MODEL_FIELD,
-      max_tokens: 1024,
-      system: systemPromptFor(profile, language),
-      output_config: { format: { type: 'json_schema', schema: internetSchema } },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Visitor question (${language}): ${question}\n\nSearch the web if needed, then return JSON with text, confidence, and sources.`,
-            },
-          ],
-        },
-      ],
-    })
+    response = await client.messages.create(
+      {
+        model: LAPI_MODEL_FIELD,
+        max_tokens: 1024,
+        system: systemPromptFor(profile, language),
+        output_config: { format: { type: 'json_schema', schema: internetSchema } },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Visitor question (${language}): ${question}\n\nSearch the web if needed, then return JSON with text, confidence, and sources.`,
+              },
+            ],
+          },
+        ],
+      },
+      { signal },
+    )
   } catch (error) {
+    if (signal?.aborted) {
+      // Caller cancelled — not an error from our perspective.
+      return null
+    }
     console.warn('[llm-internet] LAPI call failed', error)
     return null
   }

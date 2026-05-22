@@ -124,11 +124,14 @@ export async function findLlmMatch({
   language,
   candidates,
   projectName,
+  signal,
 }: {
   question: string
   language: DemoLanguage
   candidates: LlmMatchCandidate[]
   projectName?: string
+  /** AbortSignal from the inbound request — cancels in-flight LAPI call. */
+  signal?: AbortSignal
 }): Promise<LlmMatchResult | null> {
   if (!isLlmMatchEnabled() || candidates.length === 0) {
     return null
@@ -182,27 +185,33 @@ export async function findLlmMatch({
 
   let response
   try {
-    response = await client.messages.create({
-      model: LAPI_MODEL_FIELD,
-      max_tokens: 256,
-      system: SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: matchSchema } },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text:
-                `Approved answers (language: ${language}):\n${catalog}\n\n` +
-                `Visitor question (language: ${language}): "${question}"\n\n` +
-                'Return the matching id (or null) per the schema.',
-            },
-          ],
-        },
-      ],
-    })
+    response = await client.messages.create(
+      {
+        model: LAPI_MODEL_FIELD,
+        max_tokens: 256,
+        system: SYSTEM_PROMPT,
+        output_config: { format: { type: 'json_schema', schema: matchSchema } },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  `Approved answers (language: ${language}):\n${catalog}\n\n` +
+                  `Visitor question (language: ${language}): "${question}"\n\n` +
+                  'Return the matching id (or null) per the schema.',
+              },
+            ],
+          },
+        ],
+      },
+      { signal },
+    )
   } catch (error) {
+    if (signal?.aborted) {
+      return null
+    }
     console.warn('[llm-match] LAPI call failed', error)
     return null
   }

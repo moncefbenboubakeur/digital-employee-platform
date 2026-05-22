@@ -48,7 +48,13 @@ export async function POST(request: NextRequest) {
 
   const choice = parseRoutingChoice(request.headers.get(MATCHER_BACKEND_HEADER))
   const projectName = resolveMatcherProject(choice)
-  const result = await findLlmMatch({ question, language, candidates, projectName })
+  const result = await findLlmMatch({
+    question,
+    language,
+    candidates,
+    projectName,
+    signal: request.signal,
+  })
 
   return NextResponse.json({
     enabled: true,

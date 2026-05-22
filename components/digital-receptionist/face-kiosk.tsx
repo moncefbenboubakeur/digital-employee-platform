@@ -575,6 +575,11 @@ export function FaceKiosk() {
   // Monotonic submission counter. Late-arriving askQuestion results from a
   // previous submission get discarded so we never flicker old → new.
   const submitRequestRef = useRef(0)
+  // AbortController for the in-flight askQuestion fetch chain. Aborted
+  // when a new submission starts OR when the visitor taps the mic again
+  // mid-search, so the upstream LAPI call stops generating tokens nobody
+  // will see.
+  const inflightAbortRef = useRef<AbortController | null>(null)
   const [transcript, setTranscript] = useState('')
   const [sttSupported, setSttSupported] = useState(false)
   const [showHint, setShowHint] = useState(true)
@@ -901,10 +906,25 @@ export function FaceKiosk() {
   )
 
   // --- Ask flow ------------------------------------------------------------
+  // Abort any in-flight ask. Called when a new submission starts OR when the
+  // visitor taps the mic again — the previous LAPI call is cancelled so the
+  // upstream model stops generating wasted tokens.
+  const cancelInflightAsk = useCallback(() => {
+    if (inflightAbortRef.current) {
+      inflightAbortRef.current.abort()
+      inflightAbortRef.current = null
+    }
+  }, [])
+
   const submitQuestion = useCallback(
     async (value: string) => {
       const trimmed = value.trim()
       if (!trimmed) return
+
+      // Cancel anything still running from the previous submission.
+      cancelInflightAsk()
+      const controller = new AbortController()
+      inflightAbortRef.current = controller
 
       const reqId = ++submitRequestRef.current
       setShowHint(false)
@@ -913,12 +933,29 @@ export function FaceKiosk() {
       setTranscript(trimmed)
       setAnswerText('')
 
-      const result: AskResult = await askQuestion(trimmed, language, (phase) => {
-        // Phase callback fires when askQuestion enters the internet leg.
-        // Only honor it if this is still the latest submission.
-        if (reqId !== submitRequestRef.current) return
-        if (phase === 'searching-internet') setSearchingInternet(true)
-      })
+      let result: AskResult
+      try {
+        result = await askQuestion(
+          trimmed,
+          language,
+          (phase) => {
+            // Phase callback fires when askQuestion enters the internet leg.
+            // Only honor it if this is still the latest submission.
+            if (reqId !== submitRequestRef.current) return
+            if (phase === 'searching-internet') setSearchingInternet(true)
+          },
+          controller.signal,
+        )
+      } catch (err) {
+        // We aborted intentionally (new submission, mic re-tap). Skip
+        // rendering — the new submission will own the UI.
+        if (controller.signal.aborted) return
+        throw err
+      }
+      // Clear the in-flight ref if this controller is still the active one.
+      if (inflightAbortRef.current === controller) {
+        inflightAbortRef.current = null
+      }
       // Stale-response guard: a newer submission has started; drop this one
       // so its (possibly outdated) answer doesn't flicker over the new one.
       if (reqId !== submitRequestRef.current) return
@@ -973,6 +1010,14 @@ export function FaceKiosk() {
   const startListening = useCallback(() => {
     const Ctor = getSpeechRecognitionCtor()
     if (!Ctor) return
+
+    // Cancel any in-flight ask from a previous question — if we're
+    // searching the internet (20s wait) and the visitor taps mic to ask
+    // something else, kill the upstream LAPI call instead of letting it
+    // burn quota on an answer nobody will see.
+    cancelInflightAsk()
+    setSearchingInternet(false)
+    setAnswerText('')
 
     if (recognitionRef.current) {
       try {
@@ -1051,7 +1096,7 @@ export function FaceKiosk() {
     } catch {
       setState('idle')
     }
-  }, [language, startMicAnalyser, stopMicAnalyser, stopSpeaking])
+  }, [cancelInflightAsk, language, startMicAnalyser, stopMicAnalyser, stopSpeaking])
 
   const onMicClick = () => {
     if (state === 'listening') {

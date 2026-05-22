@@ -38,10 +38,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ enabled: false, answer: null, reason: 'tenant-disabled' })
   }
 
+  // request.signal aborts when the browser drops the fetch (e.g., visitor
+  // tapped the mic again mid-search). Threading it into the LAPI call cuts
+  // the in-flight LLM generation so quota isn't burned for an answer
+  // nobody will see.
   const answer = await findInternetAnswer({
     question,
     language,
     profile: payload.profile,
+    signal: request.signal,
   })
   return NextResponse.json({ enabled: true, answer })
 }

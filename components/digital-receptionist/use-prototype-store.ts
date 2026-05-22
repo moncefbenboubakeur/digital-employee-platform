@@ -265,6 +265,11 @@ export function usePrototypeStore(options: StoreOptions = {}) {
       // Lets the UI swap "Thinking…" → "Searching the internet…" so the
       // 20-25s web-search wait reads as progress, not a hang.
       onPhase?: (phase: 'searching-internet') => void,
+      // Optional AbortSignal — when set, in-flight matcher/internet
+      // fetches are cancelled if the signal aborts (e.g., user tapped
+      // mic again). The fetch's AbortError is re-thrown so the caller
+      // can distinguish "cancelled" from "no answer".
+      signal?: AbortSignal,
     ): Promise<AskResult> => {
       const publishedAnswers = answers.filter((answer) => answer.published)
       const keywordResult = matchQuestion(question, publishedAnswers)
@@ -320,6 +325,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...routingHeaders() },
           body: JSON.stringify({ question, language, candidates }),
+          signal,
         })
         if (response.ok) {
           const payload = (await response.json()) as {
@@ -338,8 +344,10 @@ export function usePrototypeStore(options: StoreOptions = {}) {
             }
           }
         }
-      } catch {
-        // Network or LLM error — fall through to unknown.
+      } catch (err) {
+        // Cancellation propagates — caller wants to start over, not see
+        // an unknown card. All other network/LLM errors fall through.
+        if (signal?.aborted) throw err
       }
 
       // Both matchers missed. Before falling back, optionally try the
@@ -354,6 +362,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ question, language }),
+            signal,
           })
           if (res.ok) {
             const payload = (await res.json()) as {
@@ -399,8 +408,11 @@ export function usePrototypeStore(options: StoreOptions = {}) {
               }
             }
           }
-        } catch {
-          // Network/LAPI error — fall through to canned fallback.
+        } catch (err) {
+          // Re-throw cancellations so the kiosk doesn't render a stale
+          // "unknown" card after the user starts a new question.
+          if (signal?.aborted) throw err
+          // Other errors: silently fall through to canned fallback.
         }
       }
 
