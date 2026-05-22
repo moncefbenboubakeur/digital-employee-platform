@@ -225,18 +225,38 @@ const DRAFTER_USER_MESSAGE =
 // Bench runner
 // ─────────────────────────────────────────────────────────────────────────
 
-type Outcome = {
-  backend: BenchBackend
-  prompt: 'matcher' | 'matcher-prefilter' | 'drafter'
-  ok: boolean
+type PromptKind = 'matcher' | 'matcher-prefilter' | 'drafter'
+
+type Sample = {
   ms: number
   parseOk: boolean
   parseError?: string
-  text: string
   errorMessage?: string
+  text: string
+}
+
+type Outcome = {
+  backend: BenchBackend
+  prompt: PromptKind
+  samples: Sample[]
 }
 
 const PRE_FILTER_TOP_K = 8
+
+// How many samples per (backend, prompt) — see scripts/lapi-bench.ts header
+// for the rationale. First sample is dropped as warm-up (lets the OS file
+// cache and any DNS / TLS handshakes settle), the remaining N-1 are
+// reported as median + p95 + min + max.
+const SAMPLES_PER_CELL = 10
+const MOCK_SAMPLES = 3 // mock is just baseline; thrashing it doesn't tell us anything
+
+function statsOf(samplesMs: number[]): { median: number; p95: number; min: number; max: number } {
+  const sorted = [...samplesMs].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  const p95idx = Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)
+  const p95 = sorted[p95idx]
+  return { median, p95, min: sorted[0], max: sorted[sorted.length - 1] }
+}
 
 async function callLapi(opts: {
   projectName: string
@@ -343,6 +363,82 @@ async function preFilterTopK(
   return scored.slice(0, k).map((s) => s.candidate)
 }
 
+async function runOneSample(opts: {
+  projectName: string
+  backend: BenchBackend
+  system: string
+  schema: Record<string, unknown>
+  userMessage: string
+  parseAs: 'matcher' | 'drafter'
+}): Promise<Sample> {
+  const r = await callLapi({
+    projectName: opts.projectName,
+    backend: opts.backend,
+    system: opts.system,
+    schema: opts.schema,
+    userMessage: opts.userMessage,
+  })
+  const parsed = tryParse(r.text, opts.parseAs)
+  return {
+    ms: r.ms,
+    parseOk: parsed.ok,
+    parseError: parsed.err,
+    errorMessage: r.errorMessage,
+    text: r.text,
+  }
+}
+
+async function benchMultiSample(opts: {
+  backend: BenchBackend
+  prompt: PromptKind
+  projectName: string
+  system: string
+  schema: Record<string, unknown>
+  userMessage: string
+  parseAs: 'matcher' | 'drafter'
+  samples: number
+  label: string
+}): Promise<Outcome> {
+  const collected: Sample[] = []
+  process.stdout.write(`  ${opts.backend} / ${opts.label} (${opts.samples} samples)`)
+  for (let i = 0; i < opts.samples; i += 1) {
+    const s = await runOneSample({
+      projectName: opts.projectName,
+      backend: opts.backend,
+      system: opts.system,
+      schema: opts.schema,
+      userMessage: opts.userMessage,
+      parseAs: opts.parseAs,
+    })
+    collected.push(s)
+    const marker = s.errorMessage ? 'E' : s.parseOk ? '.' : '!'
+    process.stdout.write(marker)
+  }
+  // Summary
+  const successes = collected.filter((s) => !s.errorMessage).map((s) => s.ms)
+  const sample1ms = collected[0]?.ms ?? 0
+  const lastMs = collected[collected.length - 1]?.ms ?? 0
+  if (successes.length === 0) {
+    process.stdout.write(`  ALL FAILED\n`)
+  } else {
+    // Drop the first sample (warm-up) from stats.
+    const measured = collected.length > 1 ? successes.slice(1) : successes
+    const s = statsOf(measured)
+    const parsePass = collected.filter((c) => c.parseOk).length
+    const warmupDelta = collected.length > 1
+      ? `(s1=${(sample1ms / 1000).toFixed(1)}s, last=${(lastMs / 1000).toFixed(1)}s)`
+      : ''
+    process.stdout.write(
+      `  median=${(s.median / 1000).toFixed(2)}s p95=${(s.p95 / 1000).toFixed(2)}s min=${(s.min / 1000).toFixed(2)}s max=${(s.max / 1000).toFixed(2)}s  parse-ok=${parsePass}/${collected.length} ${warmupDelta}\n`,
+    )
+  }
+  return {
+    backend: opts.backend,
+    prompt: opts.prompt,
+    samples: collected,
+  }
+}
+
 async function benchOne(
   backend: BenchBackend,
   catalog: CatalogEntry[],
@@ -350,143 +446,174 @@ async function benchOne(
 ): Promise<Outcome[]> {
   const projectName = ensureProjectYaml(backend)
   const outcomes: Outcome[] = []
+  const samples = backend === 'mock' ? MOCK_SAMPLES : SAMPLES_PER_CELL
 
   // Matcher (full catalog, baseline — what production was doing pre-embedding)
-  process.stdout.write(`  ${backend} / matcher (full ${catalog.length})  ... `)
-  const m = await callLapi({
-    projectName,
-    backend,
-    system: MATCHER_SYSTEM_PROMPT,
-    schema: MATCHER_SCHEMA,
-    userMessage: buildMatcherUserMessage(catalog),
-  })
-  const mParse = tryParse(m.text, 'matcher')
-  console.log(
-    `${(m.ms / 1000).toFixed(2)}s ${m.errorMessage ? `(ERR: ${m.errorMessage.slice(0, 60)})` : mParse.ok ? '(parse ok)' : `(parse FAIL: ${mParse.err})`}`,
-  )
-  outcomes.push({
-    backend,
-    prompt: 'matcher',
-    ok: !m.errorMessage,
-    ms: m.ms,
-    parseOk: mParse.ok,
-    parseError: mParse.err,
-    text: m.text,
-    errorMessage: m.errorMessage,
-  })
-
-  // Matcher (two-stage: embedding pre-filter narrows to top-K, LLM tie-breaks)
-  if (preFilteredCatalog) {
-    process.stdout.write(
-      `  ${backend} / matcher (pre-filter top-${preFilteredCatalog.length})  ... `,
-    )
-    const mp = await callLapi({
-      projectName,
+  outcomes.push(
+    await benchMultiSample({
       backend,
+      prompt: 'matcher',
+      projectName,
       system: MATCHER_SYSTEM_PROMPT,
       schema: MATCHER_SCHEMA,
-      userMessage: buildMatcherUserMessage(preFilteredCatalog),
-    })
-    const mpParse = tryParse(mp.text, 'matcher')
-    console.log(
-      `${(mp.ms / 1000).toFixed(2)}s ${mp.errorMessage ? `(ERR: ${mp.errorMessage.slice(0, 60)})` : mpParse.ok ? '(parse ok)' : `(parse FAIL: ${mpParse.err})`}`,
+      userMessage: buildMatcherUserMessage(catalog),
+      parseAs: 'matcher',
+      samples,
+      label: `matcher (full ${catalog.length})`,
+    }),
+  )
+
+  // Matcher (two-stage: embedding pre-filter narrows to top-K)
+  if (preFilteredCatalog) {
+    outcomes.push(
+      await benchMultiSample({
+        backend,
+        prompt: 'matcher-prefilter',
+        projectName,
+        system: MATCHER_SYSTEM_PROMPT,
+        schema: MATCHER_SCHEMA,
+        userMessage: buildMatcherUserMessage(preFilteredCatalog),
+        parseAs: 'matcher',
+        samples,
+        label: `matcher (pre-filter top-${preFilteredCatalog.length})`,
+      }),
     )
-    outcomes.push({
-      backend,
-      prompt: 'matcher-prefilter',
-      ok: !mp.errorMessage,
-      ms: mp.ms,
-      parseOk: mpParse.ok,
-      parseError: mpParse.err,
-      text: mp.text,
-      errorMessage: mp.errorMessage,
-    })
   }
 
-  // Drafter
-  process.stdout.write(`  ${backend} / drafter  ... `)
-  const d = await callLapi({
-    projectName,
-    backend,
-    system: DRAFTER_SYSTEM_PROMPT,
-    schema: DRAFTER_SCHEMA,
-    userMessage: DRAFTER_USER_MESSAGE,
-  })
-  const dParse = tryParse(d.text, 'drafter')
-  console.log(
-    `${(d.ms / 1000).toFixed(2)}s ${d.errorMessage ? `(ERR: ${d.errorMessage.slice(0, 60)})` : dParse.ok ? '(parse ok)' : `(parse FAIL: ${dParse.err})`}`,
+  // Drafter — fewer samples since each call is heavier (~10-30s)
+  const drafterSamples = backend === 'mock' ? MOCK_SAMPLES : Math.min(samples, 5)
+  outcomes.push(
+    await benchMultiSample({
+      backend,
+      prompt: 'drafter',
+      projectName,
+      system: DRAFTER_SYSTEM_PROMPT,
+      schema: DRAFTER_SCHEMA,
+      userMessage: DRAFTER_USER_MESSAGE,
+      parseAs: 'drafter',
+      samples: drafterSamples,
+      label: 'drafter',
+    }),
   )
-  outcomes.push({
-    backend,
-    prompt: 'drafter',
-    ok: !d.errorMessage,
-    ms: d.ms,
-    parseOk: dParse.ok,
-    parseError: dParse.err,
-    text: d.text,
-    errorMessage: d.errorMessage,
-  })
 
   return outcomes
 }
 
+type OutcomeStats = {
+  outcome: Outcome
+  median: number
+  p95: number
+  min: number
+  max: number
+  parsePass: number
+  totalSamples: number
+}
+
+function summarize(outcome: Outcome): OutcomeStats {
+  const successes = outcome.samples.filter((s) => !s.errorMessage).map((s) => s.ms)
+  // Drop first sample as warm-up if we have more than 1
+  const measured = outcome.samples.length > 1 ? successes.slice(1) : successes
+  const s = measured.length > 0
+    ? statsOf(measured)
+    : { median: 0, p95: 0, min: 0, max: 0 }
+  const parsePass = outcome.samples.filter((s) => s.parseOk).length
+  return {
+    outcome,
+    median: s.median,
+    p95: s.p95,
+    min: s.min,
+    max: s.max,
+    parsePass,
+    totalSamples: outcome.samples.length,
+  }
+}
+
 function printTable(results: Outcome[], hasPreFilter: boolean): void {
-  type Row = { matcher?: Outcome; 'matcher-prefilter'?: Outcome; drafter?: Outcome }
+  type Row = { matcher?: OutcomeStats; 'matcher-prefilter'?: OutcomeStats; drafter?: OutcomeStats }
   const grouped = new Map<BenchBackend, Row>()
   for (const r of results) {
     if (!grouped.has(r.backend)) grouped.set(r.backend, {})
-    grouped.get(r.backend)![r.prompt] = r
+    const stats = summarize(r)
+    grouped.get(r.backend)![r.prompt] = stats
   }
 
-  const fmt = (o?: Outcome) =>
-    o ? (o.errorMessage ? `ERR ${(o.ms / 1000).toFixed(1)}s` : `${(o.ms / 1000).toFixed(2)}s`) : '—'
-  const parseStr = (o?: Outcome) =>
-    o ? (o.errorMessage ? '—' : o.parseOk ? '✓' : '✗') : '—'
+  const fmt = (s?: OutcomeStats) => {
+    if (!s) return '—'
+    if (s.median === 0) return 'ALL FAIL'
+    return `${(s.median / 1000).toFixed(2)}s / ${(s.p95 / 1000).toFixed(2)}s`
+  }
+  const parseStr = (s?: OutcomeStats) => {
+    if (!s) return '—'
+    if (s.totalSamples === 0) return '—'
+    return `${s.parsePass}/${s.totalSamples}`
+  }
 
   console.log('')
-  console.log('### Measured latencies (real DEP-shaped prompts via LAPI)')
+  console.log('### Measured latencies — median / p95 over N samples (first sample dropped as warm-up)')
   console.log('')
 
   if (hasPreFilter) {
     console.log(
-      '| Backend     | Matcher (full 50)     | Matcher (pre-filter top-8) | Speedup | Drafter (trilingual) | Match-full JSON | Match-pf JSON | Drafter JSON |',
+      '| Backend     | Matcher (full 50)     | Matcher (pre-filter top-8) | Speedup | Drafter (trilingual)  | Match-full parse | Match-pf parse | Drafter parse |',
     )
     console.log(
-      '|-------------|-----------------------|----------------------------|---------|----------------------|-----------------|---------------|--------------|',
+      '|-------------|-----------------------|----------------------------|---------|-----------------------|------------------|----------------|---------------|',
     )
     for (const backend of BENCH_BACKENDS) {
       const row = grouped.get(backend)
       if (!row) {
-        console.log(`| \`${backend.padEnd(11)}\` | not registered        | not registered             | —       | not registered       | —               | —             | —            |`)
+        console.log(`| \`${backend.padEnd(11)}\` | not registered        | not registered             | —       | not registered        | —                | —              | —             |`)
         continue
       }
       const speedup =
-        row.matcher && row['matcher-prefilter'] && !row.matcher.errorMessage && !row['matcher-prefilter'].errorMessage
-          ? `${(row.matcher.ms / row['matcher-prefilter'].ms).toFixed(1)}×`
+        row.matcher && row['matcher-prefilter'] &&
+        row.matcher.median > 0 && row['matcher-prefilter'].median > 0
+          ? `${(row.matcher.median / row['matcher-prefilter'].median).toFixed(1)}×`
           : '—'
       console.log(
-        `| \`${backend.padEnd(11)}\` | ${fmt(row.matcher).padEnd(21)} | ${fmt(row['matcher-prefilter']).padEnd(26)} | ${speedup.padEnd(7)} | ${fmt(row.drafter).padEnd(20)} | ${parseStr(row.matcher).padEnd(15)} | ${parseStr(row['matcher-prefilter']).padEnd(13)} | ${parseStr(row.drafter).padEnd(12)} |`,
+        `| \`${backend.padEnd(11)}\` | ${fmt(row.matcher).padEnd(21)} | ${fmt(row['matcher-prefilter']).padEnd(26)} | ${speedup.padEnd(7)} | ${fmt(row.drafter).padEnd(21)} | ${parseStr(row.matcher).padEnd(16)} | ${parseStr(row['matcher-prefilter']).padEnd(14)} | ${parseStr(row.drafter).padEnd(13)} |`,
       )
     }
   } else {
-    console.log('| Backend     | Matcher (~7.5k input) | Drafter (trilingual) | Matcher JSON | Drafter JSON |')
-    console.log('|-------------|-----------------------|----------------------|--------------|--------------|')
+    console.log('| Backend     | Matcher (median / p95) | Drafter (median / p95) | Matcher parse | Drafter parse |')
+    console.log('|-------------|------------------------|------------------------|---------------|---------------|')
     for (const backend of BENCH_BACKENDS) {
       const row = grouped.get(backend)
       if (!row) {
-        console.log(`| \`${backend}\` | not registered        | not registered       | —            | —            |`)
+        console.log(`| \`${backend}\` | not registered         | not registered         | —             | —             |`)
         continue
       }
       console.log(
-        `| \`${backend.padEnd(11)}\` | ${fmt(row.matcher).padEnd(21)} | ${fmt(row.drafter).padEnd(20)} | ${parseStr(row.matcher).padEnd(12)} | ${parseStr(row.drafter).padEnd(12)} |`,
+        `| \`${backend.padEnd(11)}\` | ${fmt(row.matcher).padEnd(22)} | ${fmt(row.drafter).padEnd(22)} | ${parseStr(row.matcher).padEnd(13)} | ${parseStr(row.drafter).padEnd(13)} |`,
       )
     }
   }
   console.log('')
-  console.log('Legend: ✓ = response parsed as the expected JSON schema, ✗ = parse failed (model returned prose / malformed JSON).')
+  console.log('Each cell: median / p95 over (samples - 1) measurements (first sample is warm-up, dropped).')
+  console.log('Parse column: <N successful parses> / <N total samples including warm-up>.')
   if (hasPreFilter) {
-    console.log('Pre-filter: embedded the catalog locally (sentence-transformers, no network) and sent only the top-8 most-similar entries to the LLM. Embedding overhead is included in the timing.')
+    console.log('Pre-filter: embeddings + cosine sim (sentence-transformers, local) narrow 50 → top-8 before the LLM call. Embedding overhead (~50ms per question) is INCLUDED in the timing.')
   }
+  console.log('')
+  console.log('### Per-backend "warming" check (sample-1 vs last-sample timing)')
+  console.log('')
+  console.log('| Backend     | Prompt              | Sample 1 | Last sample | Trend  |')
+  console.log('|-------------|---------------------|----------|-------------|--------|')
+  for (const o of results) {
+    if (o.samples.length < 2) continue
+    const s1 = o.samples[0]
+    const sLast = o.samples[o.samples.length - 1]
+    const trend = sLast.ms < s1.ms * 0.85
+      ? 'warming'
+      : sLast.ms > s1.ms * 1.15
+      ? 'cooling'
+      : 'flat (cold per call)'
+    console.log(
+      `| \`${o.backend.padEnd(11)}\` | ${o.prompt.padEnd(19)} | ${(s1.ms / 1000).toFixed(2)}s     | ${(sLast.ms / 1000).toFixed(2)}s      | ${trend} |`,
+    )
+  }
+  console.log('')
+  console.log('"flat" = LAPI is spawning a fresh subprocess per call (today\'s behavior). "warming" would suggest something is being reused. See lapi-requirements/02-long-lived-cli-subprocess-sessions.md.')
 }
 
 async function main(): Promise<void> {
