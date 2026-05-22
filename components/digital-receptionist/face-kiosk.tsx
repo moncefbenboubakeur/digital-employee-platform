@@ -582,6 +582,10 @@ function GlobeBadge({ active, title }: { active: boolean; title: string }) {
     setIsSafari(/^((?!chrome|android|chromium|crios|fxios|edg).)*safari/i.test(ua))
   }, [])
 
+  // DIAGNOSTIC: hide the badge entirely in Safari. If the kiosk page
+  // still misbehaves with this off, the bug isn't in GlobeBadge.
+  if (isSafari) return null
+
   const colorClass = active
     ? 'text-sky-400 [filter:drop-shadow(0_0_6px_rgba(56,189,248,0.7))]'
     : 'text-slate-400'
@@ -592,26 +596,15 @@ function GlobeBadge({ active, title }: { active: boolean; title: string }) {
       aria-label={title}
       className={`inline-flex size-9 items-center justify-center transition-[filter] duration-300 ${colorClass}`}
     >
-      {isSafari ? (
-        <img
-          src={active ? '/globe-blue.png' : '/globe-gray.png'}
-          alt=""
-          width={36}
-          height={36}
-          className="size-full transition-opacity duration-300"
-          draggable={false}
-        />
-      ) : (
-        <svg viewBox="0 0 24 24" className="size-full">
-          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.4" />
-          <ellipse cx="12" cy="12" rx="10" ry="3.4" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-          <ellipse cx="12" cy="12" rx="3.4" ry="10" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-          <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.6" opacity="0.35" />
-          <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
-          <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
-          <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
-        </svg>
-      )}
+      <svg viewBox="0 0 24 24" className="size-full">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <ellipse cx="12" cy="12" rx="10" ry="3.4" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+        <ellipse cx="12" cy="12" rx="3.4" ry="10" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+        <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" strokeWidth="0.6" opacity="0.35" />
+        <ellipse cx="9" cy="9" rx="2" ry="1.3" fill="currentColor" opacity="0.6" />
+        <ellipse cx="15" cy="13" rx="1.6" ry="2.2" fill="currentColor" opacity="0.6" />
+        <circle cx="10" cy="17" r="1.1" fill="currentColor" opacity="0.6" />
+      </svg>
     </span>
   )
 }
