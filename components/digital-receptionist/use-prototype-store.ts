@@ -258,7 +258,14 @@ export function usePrototypeStore(options: StoreOptions = {}) {
   }, [options.admin, profile.locationName.en])
 
   const askQuestion = useCallback(
-    async (question: string, language: DemoLanguage): Promise<AskResult> => {
+    async (
+      question: string,
+      language: DemoLanguage,
+      // Optional callback fired when askQuestion transitions phases.
+      // Lets the UI swap "Thinking…" → "Searching the internet…" so the
+      // 20-25s web-search wait reads as progress, not a hang.
+      onPhase?: (phase: 'searching-internet') => void,
+    ): Promise<AskResult> => {
       const publishedAnswers = answers.filter((answer) => answer.published)
       const keywordResult = matchQuestion(question, publishedAnswers)
 
@@ -341,6 +348,7 @@ export function usePrototypeStore(options: StoreOptions = {}) {
       // server route returns enabled:false if either is off, so the
       // network call is cheap when the feature is unused.
       if (profile.useInternetFallback) {
+        onPhase?.('searching-internet')
         try {
           const res = await fetch('/api/llm-internet', {
             method: 'POST',

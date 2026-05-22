@@ -568,6 +568,13 @@ export function FaceKiosk() {
   const [answerText, setAnswerText] = useState('')
   const [answerKind, setAnswerKind] = useState<'known' | 'unknown' | 'escalation' | 'greeting' | 'internet'>('greeting')
   const [internetSources, setInternetSources] = useState<string[]>([])
+  // True while askQuestion is in the "internet fallback" leg — used to swap
+  // the thinking caption to "Searching the internet…" so the 20-25s wait
+  // reads as progress instead of a hang.
+  const [searchingInternet, setSearchingInternet] = useState(false)
+  // Monotonic submission counter. Late-arriving askQuestion results from a
+  // previous submission get discarded so we never flicker old → new.
+  const submitRequestRef = useRef(0)
   const [transcript, setTranscript] = useState('')
   const [sttSupported, setSttSupported] = useState(false)
   const [showHint, setShowHint] = useState(true)
@@ -899,12 +906,23 @@ export function FaceKiosk() {
       const trimmed = value.trim()
       if (!trimmed) return
 
+      const reqId = ++submitRequestRef.current
       setShowHint(false)
       setState('thinking')
+      setSearchingInternet(false)
       setTranscript(trimmed)
       setAnswerText('')
 
-      const result: AskResult = await askQuestion(trimmed, language)
+      const result: AskResult = await askQuestion(trimmed, language, (phase) => {
+        // Phase callback fires when askQuestion enters the internet leg.
+        // Only honor it if this is still the latest submission.
+        if (reqId !== submitRequestRef.current) return
+        if (phase === 'searching-internet') setSearchingInternet(true)
+      })
+      // Stale-response guard: a newer submission has started; drop this one
+      // so its (possibly outdated) answer doesn't flicker over the new one.
+      if (reqId !== submitRequestRef.current) return
+      setSearchingInternet(false)
       if (result.type === 'known') {
         const localized = result.answer.answerText[language]
         setAnswerText(localized)
@@ -1211,6 +1229,19 @@ export function FaceKiosk() {
               </div>
             ) : null}
           </div>
+        ) : !answerText && state === 'thinking' && searchingInternet ? (
+          // 20-25s web-search wait — explicit caption so visitors (and the
+          // operator debugging) know we haven't hung.
+          <p
+            className="animate-[fadeIn_400ms_ease-out] text-center text-base text-violet-200/80 md:text-lg"
+            dir={dir}
+          >
+            {language === 'ar'
+              ? 'جاري البحث على الإنترنت…'
+              : language === 'fr'
+              ? "Recherche sur Internet…"
+              : 'Searching the internet…'}
+          </p>
         ) : !answerText && state !== 'listening' && showHint ? (
           <p
             key={hintLang}
